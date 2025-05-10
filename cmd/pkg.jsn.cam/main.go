@@ -4,6 +4,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/syumai/workers"
 	"log/slog"
 	"net/http"
 	"os"
@@ -101,9 +102,10 @@ func main() {
 	))
 
 	lg.Info("listening", "port", *port)
-	err = http.ListenAndServe(":"+*port, mux)
-	if err != nil {
-		lg.Error("can't start server", "err", err)
-		os.Exit(1)
-	}
+	workers.Serve(nil)
+	//err = http.ListenAndServe(":"+*port, mux)
+	//if err != nil {
+	//	lg.Error("can't start server", "err", err)
+	//	os.Exit(1)
+	//}
 }
