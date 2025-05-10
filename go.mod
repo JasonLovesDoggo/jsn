@@ -11,7 +11,6 @@ require (
 	github.com/posener/complete v1.2.3
 	go.jetpack.io/tyson v0.1.1
 	go4.org v0.0.0-20230225012048-214862532bf5
-	within.website/x v1.18.0
 )
 
 require (

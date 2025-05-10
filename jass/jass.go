@@ -5,11 +5,10 @@ package jass
 
 import (
 	"embed"
+	"github.com/a-h/templ"
+	"github.com/jasonlovesdoggo/jsn"
 	"github.com/jasonlovesdoggo/jsn/internal"
 	"net/http"
-	"within.website/x"
-
-	"github.com/a-h/templ"
 )
 
 //go:generate go tool templ generate
@@ -24,7 +23,7 @@ var (
 func init() {
 	Mount(http.DefaultServeMux)
 
-	URL = URL + "?cachebuster=" + x.Version
+	URL = URL + "?cachebuster=" + jsn.Version
 }
 
 func Mount(mux *http.ServeMux) {

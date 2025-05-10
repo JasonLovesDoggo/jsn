@@ -15,7 +15,6 @@ import (
 	"github.com/jasonlovesdoggo/jsn/internal/slog"
 	"github.com/posener/complete"
 	"go4.org/legal"
-	"within.website/x/flagfolder"
 
 	// Debug routes
 	_ "expvar"
@@ -38,7 +37,7 @@ func configFileLocation() string {
 		return ""
 	}
 
-	dir = filepath.Join(dir, "within.website", "x")
+	dir = filepath.Join(dir, "jsn.cam", "jsn")
 	os.MkdirAll(dir, 0700)
 
 	return filepath.Join(dir, filepath.Base(os.Args[0])+".config")
@@ -59,7 +58,7 @@ func configFileLocation() string {
 func HandleStartup() {
 	flag.Parse()
 	flagenv.Parse()
-	flagfolder.Parse()
+	//flagfolder.Parse()
 	flag.Parse()
 	slog.Init()
 
