@@ -2,15 +2,15 @@ package internal
 
 import (
 	"fmt"
+	"github.com/jasonlovesdoggo/jsn/licenses"
 	"net/http"
 	"os"
 
 	"go4.org/legal"
-	"within.website/x/cmd/license/licenses"
 )
 
 func init() {
-	legal.RegisterLicense(licenses.CC0License)
+	legal.RegisterLicense(licenses.MitLicense)
 	legal.RegisterLicense(licenses.SQLiteBlessing)
 
 	http.HandleFunc("/.jsn/licenses", func(w http.ResponseWriter, r *http.Request) {
