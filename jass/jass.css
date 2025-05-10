@@ -6,7 +6,7 @@
     --text-selection: #45475a;
     --link-foreground: #89b4fa;
     --link-background: transparent;
-    --blockquote-border-left: 2px solid #89b4fa;
+    --blockquote-border-left: 4px solid #89b4fa;
     --body-title-font: 'JetBrains Mono', monospace;
 
     /* Theme Overrides */
@@ -22,7 +22,7 @@
         --text-selection: #dce0e8;
         --link-foreground: #1e66f5;
         --link-background: transparent;
-        --blockquote-border-left: 2px solid var(--link-foreground);
+        --blockquote-border-left: 4px solid var(--link-foreground);
         --background: var(--bg);
         --text: var(--fg);
     }
@@ -32,14 +32,24 @@
 html, body {
     margin: 0;
     padding: 0;
-    height: 100%;
+    min-height: 100%;
     font-family: 'JetBrains Mono', monospace;
     background-color: var(--background);
     color: var(--text);
     line-height: 1.6;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    justify-content: flex-start;
     align-items: center;
+    overflow-x: hidden;
+}
+
+/* Container for content */
+main, section {
+    width: 100%;
+    max-width: 600px;
+    padding: 1rem;
+    box-sizing: border-box;
 }
 
 /* Text Selection */
@@ -51,11 +61,13 @@ html, body {
 h1, h2, h3, h4, h5 {
     font-family: var(--body-title-font);
     color: #f5e0dc; /* Rosewater from Catppuccin */
-    margin-bottom: 0.1rem;
+    margin-bottom: 0.5rem;
 }
 
 p, li {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 /* Links */
@@ -72,9 +84,12 @@ a:hover {
 /* Blockquote */
 blockquote {
     border-left: var(--blockquote-border-left);
-    margin: 0.5em 10px;
-    padding: 0.5em 10px;
+    margin: 1em 0;
+    padding: 0.75em 1em;
+    background-color: rgba(49,50,68,0.5);
     color: #bac2de; /* Subtext0 */
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 /* Code & Preformatted Text */
@@ -86,6 +101,14 @@ code, pre {
     font-size: 0.9em;
 }
 
+pre {
+    overflow-x: auto;
+    padding: 1em;
+    margin: 1em 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
 /* Footer */
 footer {
     text-align: center;
@@ -93,4 +116,21 @@ footer {
     padding: 1rem;
     font-size: 0.8em;
     color: #7f849c; /* Overlay0 */
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Font Loading */
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: local('JetBrains Mono'), url('static/JetBrainsMono-Regular.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: local('JetBrains Mono Bold'), url('static/JetBrainsMono-Bold.woff2') format('woff2');
+    font-weight: bold;
+    font-style: normal;
 }

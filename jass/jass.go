@@ -14,16 +14,15 @@ import (
 //go:generate go tool templ generate
 
 var (
-	//go:embed jass.css static
+	//go:embed jass.min.css static
 	Static embed.FS
 
-	URL    = "/.jsn.cam/jass/jass.css"
+	URL    = "/.jsn.cam/jass/jass.min.css"
 	prefix = "/.jsn.cam/jass/"
 )
 
 func init() {
 	Mount(http.DefaultServeMux)
-
 	URL = URL + "?cachebuster=" + jsn.Version
 }
 

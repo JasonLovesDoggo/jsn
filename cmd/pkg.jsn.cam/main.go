@@ -4,82 +4,79 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/a-h/templ"
-	"github.com/jasonlovesdoggo/jsn/internal"
-	"github.com/jasonlovesdoggo/jsn/internal/vanity"
-	"github.com/jasonlovesdoggo/jsn/jass"
-	"go.jetpack.io/tyson"
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
+
+	"github.com/a-h/templ"
+	"github.com/jasonlovesdoggo/jsn/internal"
+	"github.com/jasonlovesdoggo/jsn/jass"
 )
 
 //go:generate go tool templ generate ./...
 
 var (
-	domain      = flag.String("domain", "pkg.jsn.cam", "domain this is run on")
-	port        = flag.String("port", "2134", "HTTP port to listen on")
-	tysonConfig = flag.String("tyson-config", "./config.ts", "TySON config file")
+	domain     = flag.String("domain", "pkg.jsn.cam", "domain this is run on")
+	port       = flag.String("port", "2134", "HTTP port to listen on")
+	tomlConfig = flag.String("config", "./config.toml", "TOML config file")
 )
-
-type Repo struct {
-	Kind        string `json:"kind"`
-	Domain      string `json:"domain"`
-	User        string `json:"user"`
-	Repo        string `json:"repo"`
-	Description string `json:"description"`
-}
-
-func (r Repo) URL() string {
-	return fmt.Sprintf("https://%s/%s/%s", r.Domain, r.User, r.Repo)
-}
-
-func (r Repo) GodocURL() string {
-	return fmt.Sprintf("https://pkg.go.dev/%s/%s", r.Domain, r.Repo)
-}
-
-func (r Repo) GodocBadge() string {
-	return fmt.Sprintf("https://pkg.go.dev/badge/%s/%s.svg", r.Domain, r.Repo)
-}
-
-func (r Repo) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.String("kind", r.Kind),
-		slog.String("domain", r.Domain),
-		slog.String("user", r.User),
-		slog.String("repo", r.Repo),
-	)
-}
-
-func (r Repo) RegisterHandlers(mux *http.ServeMux, lg *slog.Logger) {
-	switch r.Kind {
-	case "gitea":
-		mux.Handle("/"+r.Repo, vanity.GogsHandler(*domain+"/"+r.Repo, r.Domain, r.User, r.Repo, "https"))
-		mux.Handle("/"+r.Repo+"/", vanity.GogsHandler(*domain+"/"+r.Repo, r.Domain, r.User, r.Repo, "https"))
-	case "github":
-		mux.Handle("/"+r.Repo, vanity.GitHubHandler(*domain+"/"+r.Repo, r.User, r.Repo, "https"))
-		mux.Handle("/"+r.Repo+"/", vanity.GitHubHandler(*domain+"/"+r.Repo, r.User, r.Repo, "https"))
-	}
-	lg.Debug("registered repo handler", "repo", r)
-}
 
 //go:generate go tool templ generate
 
 func main() {
 	internal.HandleStartup()
+	flag.Parse()
 
-	lg := slog.Default().With("domain", *domain, "configPath", *tysonConfig)
+	lg := slog.Default().With("domain", *domain, "configPath", *tomlConfig)
 
-	var repos []Repo
-	if err := tyson.Unmarshal(*tysonConfig, &repos); err != nil {
-		lg.Error("can't unmarshal config", "err", err)
+	// Resolve path relative to executable
+	execPath, err := os.Executable()
+	if err != nil {
+		lg.Error("can't get executable path", "err", err)
 		os.Exit(1)
+	}
+
+	configPath := *tomlConfig
+	if !filepath.IsAbs(configPath) {
+		configPath = filepath.Join(filepath.Dir(execPath), configPath)
+	}
+
+	lg.Debug("loading config", "path", configPath)
+
+	// Load config and repositories from TOML file
+	config, err := LoadConfig(configPath, lg)
+	if err != nil {
+		// Try relative to working directory if that fails
+		workingDir, _ := os.Getwd()
+		altPath := filepath.Join(workingDir, *tomlConfig)
+
+		lg.Debug("trying alternative config path", "path", altPath)
+
+		config, err = LoadConfig(altPath, lg)
+		if err != nil {
+			lg.Error("can't decode config at either path",
+				"primary_path", configPath,
+				"alt_path", altPath,
+				"err", err)
+			os.Exit(1)
+		}
+	}
+
+	// Build the list of repositories from the config
+	repos := BuildRepos(config, lg)
+
+	// Debug logging for repos
+	lg.Debug("loaded repos", "count", len(repos))
+	for i, repo := range repos {
+		lg.Debug("loaded repo", "index", i, "repo", repo)
 	}
 
 	mux := http.NewServeMux()
 
+	// Register handlers for each repository
 	for _, repo := range repos {
-		repo.RegisterHandlers(mux, lg)
+		repo.RegisterHandlers(mux, *domain, lg)
 	}
 
 	jass.Mount(mux)
@@ -104,5 +101,9 @@ func main() {
 	))
 
 	lg.Info("listening", "port", *port)
-	http.ListenAndServe(":"+*port, mux)
+	err = http.ListenAndServe(":"+*port, mux)
+	if err != nil {
+		lg.Error("can't start server", "err", err)
+		os.Exit(1)
+	}
 }
