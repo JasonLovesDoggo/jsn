@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "cssnano": "^7.0.7",
-    "cssnano-preset-advanced": "^7.0.7"
+    "cssnano-preset-advanced": "^7.0.7",
+    "postcss-url": "^10.1.3"
   }
 }

@@ -17,7 +17,8 @@ var (
 	//go:embed jass.css static
 	Static embed.FS
 
-	URL = "/.jsn.cam/jsn/jass/jass.css"
+	URL    = "/.jsn.cam/jass/jass.css"
+	prefix = "/.jsn.cam/jass/"
 )
 
 func init() {
@@ -27,7 +28,7 @@ func init() {
 }
 
 func Mount(mux *http.ServeMux) {
-	mux.Handle("/.jsn.cam/jsn/jass", internal.UnchangingCache(http.StripPrefix("/.jsn.cam/jsn/jass", http.FileServerFS(Static))))
+	mux.Handle(prefix, http.StripPrefix(prefix, internal.UnchangingCache(http.FileServerFS(Static))))
 }
 
 func NotFound(w http.ResponseWriter, r *http.Request) {

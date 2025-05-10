@@ -26,8 +26,8 @@ import (
 
 var (
 	licenseShow = flag.Bool("license", false, "show software licenses?")
-	config      = flag.String("config", configFileLocation(), "configuration file, if set (see flagconfyg(4))")
-	manpageGen  = flag.Bool("manpage", false, "generate a manpage template?")
+	//config      = flag.String("config", configFileLocation(), "configuration file, if set (see flagconfyg(4))")
+	manpageGen = flag.Bool("manpage", false, "generate a manpage template?")
 )
 
 func configFileLocation() string {
