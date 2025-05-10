@@ -1,0 +1,14 @@
+[repo.github]
+username = "JasonLovesDoggo"
+url = "github.com"
+default = true # makes it so you don't have to specify the provider in the package
+
+#[repo.gitlab]
+#username = "someuser"
+#url = "gitlab.com"
+
+[jsn]
+desc = "Various experimental things. /jsn/ is my monorepo of side projects, hobby programming, and other explorations of how programming in Go can be."
+[caddy-defender]
+[abacus]
+desc = "A highly-scalable and stateless counting API"
