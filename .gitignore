@@ -29,3 +29,7 @@ go.work.sum
 .vscode/
 # MacOS
 .DS_Store
+
+
+# js
+node_modules

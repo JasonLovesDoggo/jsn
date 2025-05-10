@@ -1,0 +1,96 @@
+/* Catppuccin Mocha (Dark) & Latte (Light) Foundation */
+:root {
+    /* Base Colors */
+    --bg: #1e1e2e;
+    --fg: #cdd6f4;
+    --text-selection: #45475a;
+    --link-foreground: #89b4fa;
+    --link-background: transparent;
+    --blockquote-border-left: 2px solid #89b4fa;
+    --body-title-font: 'JetBrains Mono', monospace;
+
+    /* Theme Overrides */
+    --background: var(--bg);
+    --text: var(--fg);
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        /* Light Theme Overrides */
+        --bg: #eff1f5;
+        --fg: #4c4f69;
+        --text-selection: #dce0e8;
+        --link-foreground: #1e66f5;
+        --link-background: transparent;
+        --blockquote-border-left: 2px solid var(--link-foreground);
+        --background: var(--bg);
+        --text: var(--fg);
+    }
+}
+
+/* Global Reset & Layout */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: 'JetBrains Mono', monospace;
+    background-color: var(--background);
+    color: var(--text);
+    line-height: 1.6;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Text Selection */
+::selection {
+    background-color: var(--text-selection);
+}
+
+/* Typography */
+h1, h2, h3, h4, h5 {
+    font-family: var(--body-title-font);
+    color: #f5e0dc; /* Rosewater from Catppuccin */
+    margin-bottom: 0.1rem;
+}
+
+p, li {
+    margin-bottom: 0.5rem;
+}
+
+/* Links */
+a, a:active, a:visited {
+    color: var(--link-foreground);
+    background-color: var(--link-background);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Blockquote */
+blockquote {
+    border-left: var(--blockquote-border-left);
+    margin: 0.5em 10px;
+    padding: 0.5em 10px;
+    color: #bac2de; /* Subtext0 */
+}
+
+/* Code & Preformatted Text */
+code, pre {
+    background-color: #313244; /* Mocha crust */
+    color: var(--fg);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+/* Footer */
+footer {
+    text-align: center;
+    margin-top: auto;
+    padding: 1rem;
+    font-size: 0.8em;
+    color: #7f849c; /* Overlay0 */
+}
