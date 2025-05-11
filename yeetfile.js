@@ -2,7 +2,7 @@ yeet.setenv("KO_DOCKER_REPO", "ghcr.io/jasonlovesdoggo/jsn");
 yeet.setenv("SOURCE_DATE_EPOCH", $`git log -1 --format='%ct'`.trim());
 yeet.setenv("VERSION", git.tag());
 
-programs = ["serve", "httpdebug"].join(",");
+programs = ["serve", "httpdebug", "pkg.jsn.cam"].join(",");
 
 $`ko build --platform=all --base-import-paths --tags=latest,${git.tag()} ./cmd/{${programs}}`;
 

@@ -15,15 +15,13 @@ import (
 	"github.com/jasonlovesdoggo/jsn/jass"
 )
 
-//go:generate go tool templ generate ./...
+//go:generate go tool templ generate
 
 var (
 	domain     = flag.String("domain", "pkg.jsn.cam", "domain this is run on")
-	port       = flag.String("port", "2134", "HTTP port to listen on")
+	port       = flag.String("port", "2143", "HTTP port to listen on")
 	tomlConfig = flag.String("config", "./config.toml", "TOML config file")
 )
-
-//go:generate go tool templ generate
 
 func main() {
 	internal.HandleStartup()

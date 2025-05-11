@@ -1,0 +1,19 @@
+defaultBaseImage: cgr.dev/chainguard/static
+defaultPlatforms:
+  - linux/arm64
+  - linux/amd64
+
+builds:
+  - &base
+    id: pkg.jsn.cam
+    main: ./cmd/pkg.jsn.cam
+    ldflags:
+      - -s -w
+      - -extldflags "-static"
+      - -X github.com/jasonlovesdoggo/jsn.Version={{.Env.VERSION}}
+  - <<: *base
+    id: serve
+    main: ./cmd/serve
+  - <<: *base
+    id: httpdebug
+    main: ./cmd/httpdebug
