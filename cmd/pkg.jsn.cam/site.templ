@@ -28,8 +28,8 @@ templ Index(repos []Repo) {
 		for _, repo := range repos {
 			<h2 id={ repo.Repo }>{ repo.Repo }</h2>
 			<p>
-				<a href={ templ.SafeURL(repo.GodocURL()) }><img src={ repo.GodocBadge() } alt="GoDoc"/></a>
-				<a href={ templ.SafeURL(repo.URL()) }><img alt="Source code link" src="https://img.shields.io/badge/source-link-green"/></a>
+				<a target="_blank" href={ templ.SafeURL(repo.GodocURL()) }><img src={ repo.GodocBadge() } alt="GoDoc"/></a>
+				<a target="_blank" href={ templ.SafeURL(repo.URL()) }><img alt="Source code link" src="https://img.shields.io/badge/source-link-green"/></a>
 			</p>
 			<p>{ repo.Description }</p>
 			<pre><code>go get pkg.jsn.cam/{ repo.Repo }</code></pre>

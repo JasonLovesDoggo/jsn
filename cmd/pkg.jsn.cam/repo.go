@@ -24,7 +24,7 @@ func (r Repo) URL() string {
 
 // GodocURL returns the URL to view the package documentation on pkg.go.dev
 func (r Repo) GodocURL() string {
-	return fmt.Sprintf("https://pkg.go.dev/%s/%s/%s", r.Domain, r.User, r.Repo)
+	return fmt.Sprintf("https://pkg.go.dev/%s/%s", *domain, r.Repo)
 }
 
 // GodocBadge returns the URL to the pkg.go.dev badge for this repository
