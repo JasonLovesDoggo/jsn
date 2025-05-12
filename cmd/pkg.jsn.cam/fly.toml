@@ -1,0 +1,26 @@
+# fly.toml app configuration file generated for pkg-jsn-cam on 2025-05-11T19:47:45-04:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'pkg-jsn-cam'
+primary_region = 'yyz'
+
+[http_service]
+  internal_port = 2143
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  size = 'shared-cpu-1x'
+
+
+[processes]
+web = "go run ./cmd/pkg.jsn.cam -config ./cmd/pkg.jsn.cam/config.toml"
+
+[metrics]
+port = 9091
+path = "/metrics"
