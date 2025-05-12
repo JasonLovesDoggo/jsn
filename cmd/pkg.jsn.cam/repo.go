@@ -24,12 +24,12 @@ func (r Repo) URL() string {
 
 // GodocURL returns the URL to view the package documentation on pkg.go.dev
 func (r Repo) GodocURL() string {
-	return fmt.Sprintf("https://pkg.go.dev/%s/%s", r.Domain, r.Repo)
+	return fmt.Sprintf("https://pkg.go.dev/%s/%s/%s", r.Domain, r.User, r.Repo)
 }
 
 // GodocBadge returns the URL to the pkg.go.dev badge for this repository
 func (r Repo) GodocBadge() string {
-	return fmt.Sprintf("https://pkg.go.dev/badge/%s/%s.svg", r.Domain, r.Repo)
+	return fmt.Sprintf("https://pkg.go.dev/badge/%s/%s/%s.svg", r.Domain, r.User, r.Repo)
 }
 
 // LogValue implements slog.LogValuer to provide structured logging
