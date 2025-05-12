@@ -19,7 +19,7 @@ func anchor(name string) string {
 
 templ Index(repos []Repo) {
 	<section>
-		<p>This vanity domain houses a lot of custom Go packages. Here is a list of all the packages currently tracked:</p>
+		<p>This vanity domain houses <a href="https://jasoncameron.dev/" target="_blank">Jason Cameron</a>'s Go packages. Here is a list of all the packages currently tracked:</p>
 		<ul>
 			for _, repo := range repos {
 				<li><a href={ templ.SafeURL(anchor(repo.Repo)) }>{ repo.Repo }</a></li>

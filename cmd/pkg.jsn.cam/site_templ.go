@@ -91,7 +91,7 @@ func Index(repos []Repo) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<section><p>This vanity domain houses a lot of custom Go packages. Here is a list of all the packages currently tracked:</p><ul>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<section><p>This vanity domain houses <a href=\"https://jasoncameron.dev/\" target=\"_blank\">Jason Cameron</a>'s Go packages. Here is a list of all the packages currently tracked:</p><ul>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
