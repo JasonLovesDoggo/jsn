@@ -17,9 +17,10 @@ import (
 //go:generate go tool templ generate
 
 var (
-	domain     = flag.String("domain", "pkg.jsn.cam", "domain this is run on")
-	port       = flag.String("port", "2143", "HTTP port to listen on")
-	tomlConfig = flag.String("config", "./config.toml", "TOML config file")
+	domain      = flag.String("domain", "pkg.jsn.cam", "domain this is run on")
+	port        = flag.String("port", "2143", "HTTP port to listen on")
+	metricsPort = flag.String("metrics-port", "9091", "Prometheus metrics HTTP port")
+	tomlConfig  = flag.String("config", "./config.toml", "TOML config file")
 )
 
 func main() {
@@ -72,6 +73,9 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// Start metrics server on separate port
+	RegisterMetricsHandler(*metricsPort, lg)
+
 	// Register handlers for each repository
 	for _, repo := range repos {
 		repo.RegisterHandlers(mux, *domain, lg)
@@ -99,7 +103,11 @@ func main() {
 	))
 
 	lg.Info("listening", "port", *port)
-	err = http.ListenAndServe(":"+*port, mux)
+
+	// Wrap the mux with the metrics middleware
+	handler := MetricsMiddleware(mux)
+
+	err = http.ListenAndServe(":"+*port, handler)
 	if err != nil {
 		lg.Error("can't start server", "err", err)
 		os.Exit(1)
