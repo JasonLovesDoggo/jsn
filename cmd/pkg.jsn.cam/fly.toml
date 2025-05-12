@@ -19,7 +19,7 @@ primary_region = 'yyz'
 
 
 [processes]
-web = "go run ./cmd/pkg.jsn.cam -config ./cmd/pkg.jsn.cam/config.toml"
+app = "go run ./cmd/pkg.jsn.cam -config ./cmd/pkg.jsn.cam/config.toml"
 
 [metrics]
 port = 9091
