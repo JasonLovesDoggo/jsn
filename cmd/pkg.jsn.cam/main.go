@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
 
 	"github.com/a-h/templ"
 	"github.com/jasonlovesdoggo/jsn/internal"
@@ -30,36 +29,17 @@ func main() {
 	lg := slog.Default().With("domain", *domain, "configPath", *tomlConfig)
 
 	// Resolve path relative to executable
-	execPath, err := os.Executable()
-	if err != nil {
-		lg.Error("can't get executable path", "err", err)
-		os.Exit(1)
-	}
 
 	configPath := *tomlConfig
-	if !filepath.IsAbs(configPath) {
-		configPath = filepath.Join(filepath.Dir(execPath), configPath)
-	}
-
 	lg.Debug("loading config", "path", configPath)
 
 	// Load config and repositories from TOML file
 	config, err := LoadConfig(configPath, lg)
 	if err != nil {
-		// Try relative to working directory if that fails
-		workingDir, _ := os.Getwd()
-		altPath := filepath.Join(workingDir, *tomlConfig)
-
-		lg.Debug("trying alternative config path", "path", altPath)
-
-		config, err = LoadConfig(altPath, lg)
-		if err != nil {
-			lg.Error("can't decode config at either path",
-				"primary_path", configPath,
-				"alt_path", altPath,
-				"err", err)
-			os.Exit(1)
-		}
+		lg.Error("can't decode config at either path",
+			"path", configPath,
+			"err", err)
+		os.Exit(1)
 	}
 
 	// Build the list of repositories from the config

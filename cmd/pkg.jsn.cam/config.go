@@ -42,7 +42,7 @@ func LoadConfig(path string, lg *slog.Logger) (*Config, error) {
 		Repo map[string]RepoProvider `toml:"repo"`
 	}
 
-	_, err := toml.DecodeFile(path, &tmp)
+	_, err := DecodeFile(path, &tmp)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func LoadConfig(path string, lg *slog.Logger) (*Config, error) {
 
 	// Process all top-level tables that aren't "repo"
 	rawData := map[string]interface{}{}
-	if _, err := toml.DecodeFile(path, &rawData); err != nil {
+	if _, err := DecodeFile(path, &rawData); err != nil {
 		return nil, err
 	}
 
@@ -181,4 +181,12 @@ func encodeValue(b *strings.Builder, key string, value interface{}) {
 
 func stringify(v interface{}) string {
 	return fmt.Sprintf("%v", v)
+}
+func DecodeFile(path string, v any) (toml.MetaData, error) {
+	fp, err := Open(path)
+	if err != nil {
+		return toml.MetaData{}, err
+	}
+	defer fp.Close()
+	return toml.NewDecoder(fp).Decode(v)
 }
