@@ -5,10 +5,11 @@ package jass
 
 import (
 	"embed"
+	"net/http"
+
 	"github.com/a-h/templ"
 	"github.com/jasonlovesdoggo/jsn"
 	"github.com/jasonlovesdoggo/jsn/internal"
-	"net/http"
 )
 
 //go:generate go tool templ generate

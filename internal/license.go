@@ -2,9 +2,10 @@ package internal
 
 import (
 	"fmt"
-	"github.com/jasonlovesdoggo/jsn/licenses"
 	"net/http"
 	"os"
+
+	"github.com/jasonlovesdoggo/jsn/licenses"
 
 	"go4.org/legal"
 )

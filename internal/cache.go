@@ -1,8 +1,9 @@
 package internal
 
 import (
-	"github.com/jasonlovesdoggo/jsn"
 	"net/http"
+
+	"github.com/jasonlovesdoggo/jsn"
 )
 
 func UnchangingCache(h http.Handler) http.Handler {

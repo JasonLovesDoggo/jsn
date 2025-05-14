@@ -2,10 +2,11 @@ package internal
 
 import (
 	"encoding/json"
-	"github.com/jasonlovesdoggo/jsn"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+
+	"github.com/jasonlovesdoggo/jsn"
 )
 
 func init() {
