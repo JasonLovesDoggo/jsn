@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jasonlovesdoggo/jsn/internal"
+	"pkg.jsn.cam/jsn/internal"
 )
 
 var (

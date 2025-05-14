@@ -1,4 +1,4 @@
-module github.com/jasonlovesdoggo/jsn
+module pkg.jsn.cam/jsn
 
 go 1.24.2
 

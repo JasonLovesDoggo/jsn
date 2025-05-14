@@ -31,7 +31,7 @@ func BotInfo() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<section><p>Hello, if you are reading this, you have found this URL in your access logs.</p><p>If one of these programs is doing something you don't want them to do, please <a href=\"https://jasoncameron.dev\">contact me</a> or open an issue <a href=\"https://github.com/JasonLovesDoggo/jsn/issues/new\">here</a>.</p></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<section><p>Hello, if you are reading this, you have found this URL in your access logs.</p><p>If one of these programs is doing something you don't want them to do, please <a href=\"https://jasoncameron.dev\">contact me</a> or open an issue <a href=\"https://pkg.jsn.cam/jsn/issues/new\">here</a>.</p></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

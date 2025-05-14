@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"github.com/jasonlovesdoggo/jsn"
+	"pkg.jsn.cam/jsn"
 )
 
 func init() {

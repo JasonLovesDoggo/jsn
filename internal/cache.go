@@ -3,7 +3,7 @@ package internal
 import (
 	"net/http"
 
-	"github.com/jasonlovesdoggo/jsn"
+	"pkg.jsn.cam/jsn"
 )
 
 func UnchangingCache(h http.Handler) http.Handler {

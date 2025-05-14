@@ -8,13 +8,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jasonlovesdoggo/jsn"
+	"pkg.jsn.cam/jsn"
 
-	"github.com/jasonlovesdoggo/jsn/flagenv"
-	"github.com/jasonlovesdoggo/jsn/internal/manpage"
-	"github.com/jasonlovesdoggo/jsn/internal/slog"
 	"github.com/posener/complete"
 	"go4.org/legal"
+	"pkg.jsn.cam/jsn/flagenv"
+	"pkg.jsn.cam/jsn/internal/manpage"
+	"pkg.jsn.cam/jsn/internal/slog"
 
 	// Debug routes
 	_ "expvar"

@@ -9,8 +9,8 @@ import (
 	"os"
 
 	"github.com/a-h/templ"
-	"github.com/jasonlovesdoggo/jsn/internal"
-	"github.com/jasonlovesdoggo/jsn/jass"
+	"pkg.jsn.cam/jsn/internal"
+	"pkg.jsn.cam/jsn/jass"
 )
 
 //go:generate go tool templ generate

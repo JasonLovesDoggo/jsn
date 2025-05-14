@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/jasonlovesdoggo/jsn/licenses"
+	"pkg.jsn.cam/jsn/licenses"
 
 	"go4.org/legal"
 )

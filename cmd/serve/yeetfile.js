@@ -3,7 +3,7 @@
     method.build({
       name: "serve",
       description: "Like python3 -m http.server but a single binary",
-      homepage: "https://github.com/jasonlovesdoggo/jsn",
+      homepage: "https://pkg.jsn.cam/jsn",
       license: "aGPLv3",
       goarch,
 
@@ -12,7 +12,7 @@
       },
 
       build: ({ bin }) => {
-        $`go build -o ${bin}/serve -ldflags '-s -w -extldflags "-static" -X "github.com/jasonlovesdoggo/jsn.Version=${git.tag()}"'`;
+        $`go build -o ${bin}/serve -ldflags '-s -w -extldflags "-static" -X "pkg.jsn.cam/jsn.Version=${git.tag()}"'`;
       },
     }),
   );

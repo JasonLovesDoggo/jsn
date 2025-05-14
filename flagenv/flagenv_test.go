@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/facebookgo/ensure"
-	"github.com/jasonlovesdoggo/jsn/flagenv"
+	"pkg.jsn.cam/jsn/flagenv"
 )
 
 func named(t, v string) string { return strings.ToUpper(t + v) }

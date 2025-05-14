@@ -8,7 +8,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 
-	"github.com/jasonlovesdoggo/jsn/internal"
+	"pkg.jsn.cam/jsn/internal"
 )
 
 var (

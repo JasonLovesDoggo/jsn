@@ -13,7 +13,7 @@ import (
 
 	"github.com/dave/jennifer/jen"
 	"github.com/go-vgo/robotgo"
-	"github.com/jasonlovesdoggo/jsn/internal"
+	"pkg.jsn.cam/jsn/internal"
 
 	_ "github.com/go-vgo/robotgo/base"  // Blank import for robotgo C sources
 	_ "github.com/go-vgo/robotgo/key"   // Blank import for robotgo C sources

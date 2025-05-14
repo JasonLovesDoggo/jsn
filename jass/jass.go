@@ -8,8 +8,8 @@ import (
 	"net/http"
 
 	"github.com/a-h/templ"
-	"github.com/jasonlovesdoggo/jsn"
-	"github.com/jasonlovesdoggo/jsn/internal"
+	"pkg.jsn.cam/jsn"
+	"pkg.jsn.cam/jsn/internal"
 )
 
 //go:generate go tool templ generate

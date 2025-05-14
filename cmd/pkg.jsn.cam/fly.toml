@@ -3,11 +3,8 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'pkg-jsn-cam'
+app = 'jsn'
 primary_region = 'yyz'
-
-[processes]
-  app = 'go run ./cmd/pkg.jsn.cam -config (data)/config.toml'
 
 [http_service]
   internal_port = 2143
@@ -15,7 +12,6 @@ primary_region = 'yyz'
   auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
-  processes = ['app']
 
 [[vm]]
   size = 'shared-cpu-1x'

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/jasonlovesdoggo/jsn/internal/vanity"
+	"pkg.jsn.cam/jsn/internal/vanity"
 )
 
 // Repo represents a repository with its metadata

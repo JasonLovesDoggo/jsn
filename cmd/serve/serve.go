@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/jasonlovesdoggo/jsn/internal"
+	"pkg.jsn.cam/jsn/internal"
 )
 
 var (

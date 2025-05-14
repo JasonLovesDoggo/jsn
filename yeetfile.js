@@ -29,7 +29,7 @@ const pkgs = [];
         },
 
         build: ({ bin, systemd }) => {
-          $`go build -o ${bin}/httpdebug -ldflags '-s -w -extldflags "-static" -X "github.com/jasonlovesdoggo/jsn.Version=${git.tag()}"' ./cmd/httpdebug`;
+          $`go build -o ${bin}/httpdebug -ldflags '-s -w -extldflags "-static" -X "pkg.jsn.cam/jsn.Version=${git.tag()}"' ./cmd/httpdebug`;
           file.install(
             "./cmd/httpdebug/httpdebug.service",
             `${systemd}/httpdebug.service`,
@@ -51,7 +51,7 @@ const pkgs = [];
         },
 
         build: ({ bin }) => {
-          $`go build -o ${bin}/serve -ldflags '-s -w -extldflags "-static" -X "github.com/jasonlovesdoggo/jsn.Version=${git.tag()}"' ./cmd/serve`;
+          $`go build -o ${bin}/serve -ldflags '-s -w -extldflags "-static" -X "pkg.jsn.cam/jsn.Version=${git.tag()}"' ./cmd/serve`;
         },
       }),
     );
