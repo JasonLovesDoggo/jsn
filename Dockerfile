@@ -5,7 +5,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 
-RUN CGO_ENABLED=0 go build -o vanity -X github.com/jasonlovesdoggo/jsn.Version={{.Env.VERSION}}
+RUN CGO_ENABLED=0 go build -o vanity -ldflags "-X github.com/jasonlovesdoggo/jsn.Version=v0.2.0" ./cmd/pkg.jsn.cam
 
 FROM scratch AS production
 WORKDIR /prod
