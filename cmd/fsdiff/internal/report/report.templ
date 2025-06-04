@@ -1,0 +1,267 @@
+package report
+
+import (
+	"fmt"
+	"strings"
+
+)
+
+templ reportTemplate(data *HTMLReportData) {
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<title>Filesystem Diff Report</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+		<script>
+			tailwind.config = {
+				theme: {
+					extend: {
+						fontFamily: {
+							'mono': ['Monaco', 'Menlo', 'Consolas', 'monospace']
+						}
+					}
+				}
+			}
+		</script>
+	</head>
+	<body class="bg-gray-50 min-h-screen">
+		<div class="container mx-auto px-4 py-8 max-w-7xl">
+			<!-- Header -->
+			<div class="bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 text-white rounded-2xl shadow-2xl mb-8">
+				<div class="px-8 py-12 text-center">
+					<h1 class="text-5xl font-light mb-4">
+						<span class="text-6xl">🔍</span>
+						<br/>
+						Filesystem Diff Report
+					</h1>
+					<p class="text-xl text-blue-100">Generated on { formatTime(data.GeneratedAt) }</p>
+				</div>
+			</div>
+
+			<!-- Summary Cards -->
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+				<div class="bg-white rounded-xl shadow-lg border-l-4 border-green-500 p-6 hover:shadow-xl transition-shadow">
+					<div class="flex items-center justify-between">
+						<div>
+							<p class="text-3xl font-bold text-gray-800">{ fmt.Sprint(data.Result.Summary.AddedCount) }</p>
+							<p class="text-gray-600 font-medium">Files Added</p>
+						</div>
+						<div class="text-green-500 text-3xl">➕</div>
+					</div>
+				</div>
+
+				<div class="bg-white rounded-xl shadow-lg border-l-4 border-yellow-500 p-6 hover:shadow-xl transition-shadow">
+					<div class="flex items-center justify-between">
+						<div>
+							<p class="text-3xl font-bold text-gray-800">{ fmt.Sprint(data.Result.Summary.ModifiedCount) }</p>
+							<p class="text-gray-600 font-medium">Files Modified</p>
+						</div>
+						<div class="text-yellow-500 text-3xl">🔄</div>
+					</div>
+				</div>
+
+				<div class="bg-white rounded-xl shadow-lg border-l-4 border-red-500 p-6 hover:shadow-xl transition-shadow">
+					<div class="flex items-center justify-between">
+						<div>
+							<p class="text-3xl font-bold text-gray-800">{ fmt.Sprint(data.Result.Summary.DeletedCount) }</p>
+							<p class="text-gray-600 font-medium">Files Deleted</p>
+						</div>
+						<div class="text-red-500 text-3xl">❌</div>
+					</div>
+				</div>
+
+				<div class="bg-white rounded-xl shadow-lg border-l-4 border-blue-500 p-6 hover:shadow-xl transition-shadow">
+					<div class="flex items-center justify-between">
+						<div>
+							<p class="text-3xl font-bold text-gray-800">{ fmt.Sprint(data.Result.Summary.TotalChanges) }</p>
+							<p class="text-gray-600 font-medium">Total Changes</p>
+						</div>
+						<div class="text-blue-500 text-3xl">📊</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- System Information -->
+			<div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+				<h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+					<span class="text-3xl mr-3">💻</span>
+					System Information
+				</h2>
+				<div class="grid md:grid-cols-2 gap-4">
+					<div class="bg-gray-50 rounded-lg p-4">
+						<p class="font-semibold text-gray-700 mb-2">Baseline System</p>
+						<p class="text-sm text-gray-600">
+							<strong>Host:</strong> { data.Result.Baseline.SystemInfo.Hostname }
+							({ data.Result.Baseline.SystemInfo.Distro })
+						</p>
+						<p class="text-sm text-gray-600">
+							<strong>Timestamp:</strong> { formatTime(data.Result.Baseline.SystemInfo.Timestamp) }
+						</p>
+					</div>
+					<div class="bg-gray-50 rounded-lg p-4">
+						<p class="font-semibold text-gray-700 mb-2">Current System</p>
+						<p class="text-sm text-gray-600">
+							<strong>Host:</strong> { data.Result.Current.SystemInfo.Hostname }
+							({ data.Result.Current.SystemInfo.Distro })
+						</p>
+						<p class="text-sm text-gray-600">
+							<strong>Timestamp:</strong> { formatTime(data.Result.Current.SystemInfo.Timestamp) }
+						</p>
+					</div>
+				</div>
+			</div>
+
+			<!-- Critical Changes -->
+			if len(data.CriticalChanges) > 0 {
+				<div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+					<h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+						<span class="text-3xl mr-3">🚨</span>
+						Critical Changes
+					</h2>
+					<div class="overflow-x-auto">
+						<table class="w-full">
+							<thead>
+								<tr class="bg-gray-50 border-b">
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Severity</th>
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Type</th>
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Path</th>
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Reason</th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, change := range data.CriticalChanges {
+									<tr class="border-b hover:bg-gray-50 transition-colors">
+										<td class="py-3 px-4">
+											<span class={ getSeverityColorClass(change.Severity) }>
+												{ fmt.Sprintf("%d/10", change.Severity) }
+											</span>
+										</td>
+										<td class="py-3 px-4">
+											{ getChangeIcon(change.Type) } { fmt.Sprint(change.Type) }
+										</td>
+										<td class="py-3 px-4 font-mono text-sm bg-gray-100 rounded px-2">
+											{ change.Path }
+										</td>
+										<td class="py-3 px-4 text-sm text-gray-600">{ change.Reason }</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			}
+
+			<!-- Added Files -->
+			<div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+				<h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+					<span class="text-3xl mr-3">📁</span>
+					Added Files ({ fmt.Sprint(data.Result.Summary.AddedCount) })
+				</h2>
+				if len(data.Result.Added) > 0 {
+					<div class="overflow-x-auto">
+						<table class="w-full">
+							<thead>
+								<tr class="bg-gray-50 border-b">
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Path</th>
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Size</th>
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Modified</th>
+								</tr>
+							</thead>
+							<tbody>
+								for path, record := range data.Result.Added {
+									<tr class="border-b hover:bg-gray-50 transition-colors">
+										<td class="py-3 px-4 font-mono text-sm bg-gray-100 rounded px-2">
+											{ path }
+										</td>
+										<td class="py-3 px-4 text-sm">{ formatBytes(record.Size) }</td>
+										<td class="py-3 px-4 text-sm text-gray-600">{ formatTime(record.ModTime) }</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				} else {
+					<p class="text-gray-500 italic py-4">No files were added.</p>
+				}
+			</div>
+
+			<!-- Modified Files -->
+			<div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+				<h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+					<span class="text-3xl mr-3">🔄</span>
+					Modified Files ({ fmt.Sprint(data.Result.Summary.ModifiedCount) })
+				</h2>
+				if len(data.Result.Modified) > 0 {
+					<div class="overflow-x-auto">
+						<table class="w-full">
+							<thead>
+								<tr class="bg-gray-50 border-b">
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Path</th>
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Size</th>
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Changes</th>
+								</tr>
+							</thead>
+							<tbody>
+								for path, change := range data.Result.Modified {
+									<tr class="border-b hover:bg-gray-50 transition-colors">
+										<td class="py-3 px-4 font-mono text-sm bg-gray-100 rounded px-2">
+											{ path }
+										</td>
+										<td class="py-3 px-4 text-sm">{ formatBytes(change.NewRecord.Size) }</td>
+										<td class="py-3 px-4 text-sm text-gray-600">
+											{ strings.Join(change.Changes, ", ") }
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				} else {
+					<p class="text-gray-500 italic py-4">No files were modified.</p>
+				}
+			</div>
+
+			<!-- Deleted Files -->
+			<div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+				<h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+					<span class="text-3xl mr-3">❌</span>
+					Deleted Files ({ fmt.Sprint(data.Result.Summary.DeletedCount) })
+				</h2>
+				if len(data.Result.Deleted) > 0 {
+					<div class="overflow-x-auto">
+						<table class="w-full">
+							<thead>
+								<tr class="bg-gray-50 border-b">
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Path</th>
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Size</th>
+									<th class="text-left py-3 px-4 font-semibold text-gray-700">Modified</th>
+								</tr>
+							</thead>
+							<tbody>
+								for path, record := range data.Result.Deleted {
+									<tr class="border-b hover:bg-gray-50 transition-colors">
+										<td class="py-3 px-4 font-mono text-sm bg-gray-100 rounded px-2">
+											{ path }
+										</td>
+										<td class="py-3 px-4 text-sm">{ formatBytes(record.Size) }</td>
+										<td class="py-3 px-4 text-sm text-gray-600">{ formatTime(record.ModTime) }</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				} else {
+					<p class="text-gray-500 italic py-4">No files were deleted.</p>
+				}
+			</div>
+
+			<!-- Footer -->
+			<div class="text-center py-8 text-gray-500">
+				<p class="text-sm">Report generated by fsdiff • { formatTime(data.GeneratedAt) }</p>
+			</div>
+		</div>
+	</body>
+	</html>
+}
