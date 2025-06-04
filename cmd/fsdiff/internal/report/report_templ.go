@@ -5,13 +5,10 @@ package report
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import (
-	"fmt"
-	"strings"
+import "github.com/a-h/templ"
+import templruntime "github.com/a-h/templ/runtime"
 
-	"github.com/a-h/templ"
-	templruntime "github.com/a-h/templ/runtime"
-)
+import "fmt"
 
 func reportTemplate(data *HTMLReportData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -34,501 +31,530 @@ func reportTemplate(data *HTMLReportData) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Filesystem Diff Report</title><script src=\"https://cdn.tailwindcss.com\"></script><script>\n\t\t\ttailwind.config = {\n\t\t\t\ttheme: {\n\t\t\t\t\textend: {\n\t\t\t\t\t\tfontFamily: {\n\t\t\t\t\t\t\t'mono': ['Monaco', 'Menlo', 'Consolas', 'monospace']\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t</script></head><body class=\"bg-gray-50 min-h-screen\"><div class=\"container mx-auto px-4 py-8 max-w-7xl\"><!-- Header --><div class=\"bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 text-white rounded-2xl shadow-2xl mb-8\"><div class=\"px-8 py-12 text-center\"><h1 class=\"text-5xl font-light mb-4\"><span class=\"text-6xl\">🔍</span><br>Filesystem Diff Report</h1><p class=\"text-xl text-blue-100\">Generated on ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\" class=\"dark\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>fsdiff - Filesystem Diff Report</title><script src=\"https://cdn.tailwindcss.com\"></script><script>\n\t\t\ttailwind.config = {\n\t\t\t\tdarkMode: 'class',\n\t\t\t\ttheme: {\n\t\t\t\t\textend: {\n\t\t\t\t\t\tfontFamily: {\n\t\t\t\t\t\t\t'mono': ['JetBrains Mono', 'Monaco', 'Menlo', 'Consolas', 'monospace']\n\t\t\t\t\t\t},\n\t\t\t\t\t\tanimation: {\n\t\t\t\t\t\t\t'fade-in': 'fadeIn 0.5s ease-in-out',\n\t\t\t\t\t\t\t'slide-down': 'slideDown 0.3s ease-out',\n\t\t\t\t\t\t\t'glow': 'glow 2s ease-in-out infinite alternate'\n\t\t\t\t\t\t},\n\t\t\t\t\t\tkeyframes: {\n\t\t\t\t\t\t\tfadeIn: {\n\t\t\t\t\t\t\t\t'0%': { opacity: '0', transform: 'translateY(10px)' },\n\t\t\t\t\t\t\t\t'100%': { opacity: '1', transform: 'translateY(0)' }\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\tslideDown: {\n\t\t\t\t\t\t\t\t'0%': { opacity: '0', transform: 'translateY(-10px)' },\n\t\t\t\t\t\t\t\t'100%': { opacity: '1', transform: 'translateY(0)' }\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\tglow: {\n\t\t\t\t\t\t\t\t'0%': { boxShadow: '0 0 20px rgba(59, 130, 246, 0.5)' },\n\t\t\t\t\t\t\t\t'100%': { boxShadow: '0 0 30px rgba(59, 130, 246, 0.8)' }\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tfunction toggleCollapse(id) {\n\t\t\t\tconst element = document.getElementById(id);\n\t\t\t\tconst icon = document.getElementById(id + '-icon');\n\t\t\t\tif (element.style.display === 'none') {\n\t\t\t\t\telement.style.display = 'block';\n\t\t\t\t\telement.classList.add('animate-slide-down');\n\t\t\t\t\ticon.style.transform = 'rotate(0deg)';\n\t\t\t\t} else {\n\t\t\t\t\telement.style.display = 'none';\n\t\t\t\t\ticon.style.transform = 'rotate(-90deg)';\n\t\t\t\t}\n\t\t\t}\n\t\t</script><link rel=\"preconnect\" href=\"https://fonts.googleapis.com\"><link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin><link href=\"https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&amp;display=swap\" rel=\"stylesheet\"></head><body class=\"bg-gray-900 min-h-screen text-gray-100\"><div class=\"container mx-auto px-4 py-8 max-w-7xl\"><!-- Header --><div class=\"bg-gradient-to-br from-indigo-900 via-purple-900 to-blue-900 text-white rounded-3xl shadow-2xl mb-8 border border-gray-700/50 animate-glow\"><div class=\"px-8 py-12 text-center relative overflow-hidden\"><div class=\"absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent\"></div><div class=\"relative z-10\"><div class=\"flex items-center justify-center mb-6\"><span class=\"text-6xl mr-4 animate-pulse\">📊</span><div class=\"text-left\"><h1 class=\"text-5xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent\">fsdiff</h1><p class=\"text-xl text-gray-300 font-light\">Filesystem Diff Report</p></div></div><div class=\"flex items-center justify-center space-x-6 text-sm text-gray-300\"><span>Generated: ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(data.GeneratedAt))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 39, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 78, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</p></div></div><!-- Summary Cards --><div class=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8\"><div class=\"bg-white rounded-xl shadow-lg border-l-4 border-green-500 p-6 hover:shadow-xl transition-shadow\"><div class=\"flex items-center justify-between\"><div><p class=\"text-3xl font-bold text-gray-800\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</span> <span>•</span> <a href=\"https://github.com/JasonLovesDoggo/jsn/tree/main/cmd/fsdiff\" target=\"_blank\" class=\"inline-flex items-center hover:text-blue-400 transition-colors duration-200\"><span class=\"mr-2\">⭐</span> <span>GitHub Repository</span> <span class=\"ml-1\">↗</span></a></div></div></div></div><!-- Summary Cards --><div class=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8\"><div class=\"bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700/50 p-6 hover:shadow-2xl hover:scale-105 transition-all duration-300 group\"><div class=\"flex items-center justify-between\"><div><p class=\"text-3xl font-bold text-green-400 group-hover:text-green-300 transition-colors\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(data.Result.Summary.AddedCount))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 48, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 99, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</p><p class=\"text-gray-600 font-medium\">Files Added</p></div><div class=\"text-green-500 text-3xl\">➕</div></div></div><div class=\"bg-white rounded-xl shadow-lg border-l-4 border-yellow-500 p-6 hover:shadow-xl transition-shadow\"><div class=\"flex items-center justify-between\"><div><p class=\"text-3xl font-bold text-gray-800\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</p><p class=\"text-gray-400 font-medium\">Files Added</p></div><div class=\"text-green-400 text-3xl group-hover:scale-110 transition-transform\">➕</div></div><div class=\"mt-3 h-1 bg-gray-700 rounded-full overflow-hidden\"><div class=\"h-full bg-gradient-to-r from-green-500 to-green-400 w-full transform origin-left\"></div></div></div><div class=\"bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700/50 p-6 hover:shadow-2xl hover:scale-105 transition-all duration-300 group\"><div class=\"flex items-center justify-between\"><div><p class=\"text-3xl font-bold text-yellow-400 group-hover:text-yellow-300 transition-colors\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(data.Result.Summary.ModifiedCount))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 58, Col: 98}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 113, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</p><p class=\"text-gray-600 font-medium\">Files Modified</p></div><div class=\"text-yellow-500 text-3xl\">🔄</div></div></div><div class=\"bg-white rounded-xl shadow-lg border-l-4 border-red-500 p-6 hover:shadow-xl transition-shadow\"><div class=\"flex items-center justify-between\"><div><p class=\"text-3xl font-bold text-gray-800\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</p><p class=\"text-gray-400 font-medium\">Files Modified</p></div><div class=\"text-yellow-400 text-3xl group-hover:scale-110 transition-transform\">🔄</div></div><div class=\"mt-3 h-1 bg-gray-700 rounded-full overflow-hidden\"><div class=\"h-full bg-gradient-to-r from-yellow-500 to-yellow-400 w-full transform origin-left\"></div></div></div><div class=\"bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700/50 p-6 hover:shadow-2xl hover:scale-105 transition-all duration-300 group\"><div class=\"flex items-center justify-between\"><div><p class=\"text-3xl font-bold text-red-400 group-hover:text-red-300 transition-colors\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(data.Result.Summary.DeletedCount))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 68, Col: 97}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 127, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</p><p class=\"text-gray-600 font-medium\">Files Deleted</p></div><div class=\"text-red-500 text-3xl\">❌</div></div></div><div class=\"bg-white rounded-xl shadow-lg border-l-4 border-blue-500 p-6 hover:shadow-xl transition-shadow\"><div class=\"flex items-center justify-between\"><div><p class=\"text-3xl font-bold text-gray-800\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</p><p class=\"text-gray-400 font-medium\">Files Deleted</p></div><div class=\"text-red-400 text-3xl group-hover:scale-110 transition-transform\">❌</div></div><div class=\"mt-3 h-1 bg-gray-700 rounded-full overflow-hidden\"><div class=\"h-full bg-gradient-to-r from-red-500 to-red-400 w-full transform origin-left\"></div></div></div><div class=\"bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700/50 p-6 hover:shadow-2xl hover:scale-105 transition-all duration-300 group\"><div class=\"flex items-center justify-between\"><div><p class=\"text-3xl font-bold text-blue-400 group-hover:text-blue-300 transition-colors\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(data.Result.Summary.TotalChanges))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 78, Col: 97}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 141, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</p><p class=\"text-gray-600 font-medium\">Total Changes</p></div><div class=\"text-blue-500 text-3xl\">📊</div></div></div></div><!-- System Information --><div class=\"bg-white rounded-xl shadow-lg p-6 mb-8\"><h2 class=\"text-2xl font-bold text-gray-800 mb-4 flex items-center\"><span class=\"text-3xl mr-3\">💻</span> System Information</h2><div class=\"grid md:grid-cols-2 gap-4\"><div class=\"bg-gray-50 rounded-lg p-4\"><p class=\"font-semibold text-gray-700 mb-2\">Baseline System</p><p class=\"text-sm text-gray-600\"><strong>Host:</strong> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</p><p class=\"text-gray-400 font-medium\">Total Changes</p></div><div class=\"text-blue-400 text-3xl group-hover:scale-110 transition-transform\">📊</div></div><div class=\"mt-3 h-1 bg-gray-700 rounded-full overflow-hidden\"><div class=\"h-full bg-gradient-to-r from-blue-500 to-blue-400 w-full transform origin-left\"></div></div></div></div><!-- System Information --><div class=\"bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700/50 p-6 mb-8 animate-fade-in\"><button onclick=\"toggleCollapse(&#39;system-info&#39;)\" class=\"w-full text-left\"><h2 class=\"text-2xl font-bold text-gray-100 mb-4 flex items-center justify-between hover:text-blue-400 transition-colors\"><span class=\"flex items-center\"><span class=\"text-3xl mr-3\">💻</span> System Information</span> <span id=\"system-info-icon\" class=\"text-gray-400 transition-transform duration-200\">▼</span></h2></button><div id=\"system-info\" class=\"animate-slide-down\"><div class=\"grid md:grid-cols-2 gap-6\"><div class=\"bg-gray-900/50 rounded-xl p-4 border border-gray-600/30\"><div class=\"flex items-center mb-3\"><span class=\"text-2xl mr-2\">📡</span><p class=\"font-semibold text-blue-400\">Baseline System</p></div><div class=\"space-y-2 text-sm\"><p class=\"text-gray-300\"><span class=\"text-gray-500 font-mono\">host:</span> <span class=\"text-green-400 font-mono\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(data.Result.Baseline.SystemInfo.Hostname)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 96, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 173, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, " (")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</span></p><p class=\"text-gray-300\"><span class=\"text-gray-500 font-mono\">distro:</span> <span class=\"text-yellow-400 font-mono\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(data.Result.Baseline.SystemInfo.Distro)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 97, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 177, Col: 90}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, ")</p><p class=\"text-sm text-gray-600\"><strong>Timestamp:</strong> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</span></p><p class=\"text-gray-300\"><span class=\"text-gray-500 font-mono\">timestamp:</span> <span class=\"text-purple-400 font-mono\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(data.Result.Baseline.SystemInfo.Timestamp))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 100, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 181, Col: 105}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</p></div><div class=\"bg-gray-50 rounded-lg p-4\"><p class=\"font-semibold text-gray-700 mb-2\">Current System</p><p class=\"text-sm text-gray-600\"><strong>Host:</strong> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</span></p></div></div><div class=\"bg-gray-900/50 rounded-xl p-4 border border-gray-600/30\"><div class=\"flex items-center mb-3\"><span class=\"text-2xl mr-2\">🎯</span><p class=\"font-semibold text-green-400\">Current System</p></div><div class=\"space-y-2 text-sm\"><p class=\"text-gray-300\"><span class=\"text-gray-500 font-mono\">host:</span> <span class=\"text-green-400 font-mono\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(data.Result.Current.SystemInfo.Hostname)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 106, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 193, Col: 90}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, " (")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</span></p><p class=\"text-gray-300\"><span class=\"text-gray-500 font-mono\">distro:</span> <span class=\"text-yellow-400 font-mono\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(data.Result.Current.SystemInfo.Distro)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 107, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 197, Col: 89}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, ")</p><p class=\"text-sm text-gray-600\"><strong>Timestamp:</strong> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</span></p><p class=\"text-gray-300\"><span class=\"text-gray-500 font-mono\">timestamp:</span> <span class=\"text-purple-400 font-mono\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(data.Result.Current.SystemInfo.Timestamp))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 110, Col: 89}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 201, Col: 104}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</p></div></div></div><!-- Critical Changes -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</span></p></div></div></div></div></div><!-- Critical Changes -->")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if len(data.CriticalChanges) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"bg-white rounded-xl shadow-lg p-6 mb-8\"><h2 class=\"text-2xl font-bold text-gray-800 mb-4 flex items-center\"><span class=\"text-3xl mr-3\">🚨</span> Critical Changes</h2><div class=\"overflow-x-auto\"><table class=\"w-full\"><thead><tr class=\"bg-gray-50 border-b\"><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Severity</th><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Type</th><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Path</th><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Reason</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-red-500/30 p-6 mb-8 animate-fade-in\"><button onclick=\"toggleCollapse(&#39;critical-changes&#39;)\" class=\"w-full text-left\"><h2 class=\"text-2xl font-bold text-gray-100 mb-4 flex items-center justify-between hover:text-red-400 transition-colors\"><span class=\"flex items-center\"><span class=\"text-3xl mr-3 animate-pulse\">🚨</span> Critical Changes <span class=\"ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var13 string
+			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(len(data.CriticalChanges)))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 216, Col: 120}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</span></span> <span id=\"critical-changes-icon\" class=\"text-gray-400 transition-transform duration-200\">▼</span></h2></button><div id=\"critical-changes\" class=\"animate-slide-down\"><div class=\"overflow-x-auto\"><table class=\"w-full\"><thead><tr class=\"border-b border-gray-600\"><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Severity</th><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Type</th><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Path</th><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Reason</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, change := range data.CriticalChanges {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<tr class=\"border-b hover:bg-gray-50 transition-colors\"><td class=\"py-3 px-4\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<tr class=\"border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors\"><td class=\"py-3 px-4\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var13 = []any{getSeverityColorClass(change.Severity)}
-				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var13...)
+				var templ_7745c5c3_Var14 = []any{getSeverityColorClass(change.Severity) + " px-2 py-1 rounded-full text-xs font-bold"}
+				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var14...)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<span class=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var14 string
-				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var13).String())
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 1, Col: 0}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<span class=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var15 string
-				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d/10", change.Severity))
+				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var14).String())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 138, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 1, Col: 0}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</span></td><td class=\"py-3 px-4\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var16 string
-				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(getChangeIcon(change.Type))
+				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d/10", change.Severity))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 142, Col: 39}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 237, Col: 53}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, " ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</span></td><td class=\"py-3 px-4 text-gray-300\"><span class=\"mr-2\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var17 string
-				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(change.Type))
+				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(getChangeIcon(change.Type))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 142, Col: 67}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 241, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</td><td class=\"py-3 px-4 font-mono text-sm bg-gray-100 rounded px-2\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</span> <span class=\"font-mono text-sm\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var18 string
-				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(change.Path)
+				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(change.Type))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 145, Col: 24}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 242, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</td><td class=\"py-3 px-4 text-sm text-gray-600\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</span></td><td class=\"py-3 px-4\"><code class=\"bg-gray-900 text-green-400 px-2 py-1 rounded text-sm font-mono\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var19 string
-				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(change.Reason)
+				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(change.Path)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 147, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 246, Col: 27}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</td></tr>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</code></td><td class=\"py-3 px-4 text-sm text-gray-400\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var20 string
+				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(change.Reason)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 249, Col: 71}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</td></tr>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</tbody></table></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</tbody></table></div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<!-- Added Files --><div class=\"bg-white rounded-xl shadow-lg p-6 mb-8\"><h2 class=\"text-2xl font-bold text-gray-800 mb-4 flex items-center\"><span class=\"text-3xl mr-3\">📁</span> Added Files (")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<!-- Added Files --><div class=\"bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700/50 p-6 mb-8 animate-fade-in\"><button onclick=\"toggleCollapse(&#39;added-files&#39;)\" class=\"w-full text-left\"><h2 class=\"text-2xl font-bold text-gray-100 mb-4 flex items-center justify-between hover:text-green-400 transition-colors\"><span class=\"flex items-center\"><span class=\"text-3xl mr-3\">📁</span> Added Files <span class=\"ml-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var20 string
-		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(data.Result.Summary.AddedCount))
+		var templ_7745c5c3_Var21 string
+		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(data.Result.Summary.AddedCount))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 160, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 265, Col: 126}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, ")</h2>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</span></span> <span id=\"added-files-icon\" class=\"text-gray-400 transition-transform duration-200\">▼</span></h2></button><div id=\"added-files\" class=\"animate-slide-down\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if len(data.Result.Added) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<div class=\"overflow-x-auto\"><table class=\"w-full\"><thead><tr class=\"bg-gray-50 border-b\"><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Path</th><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Size</th><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Modified</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<div class=\"overflow-x-auto\"><table class=\"w-full\"><thead><tr class=\"border-b border-gray-600\"><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Path</th><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Size</th><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Modified</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for path, record := range data.Result.Added {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<tr class=\"border-b hover:bg-gray-50 transition-colors\"><td class=\"py-3 px-4 font-mono text-sm bg-gray-100 rounded px-2\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var21 string
-				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(path)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 176, Col: 17}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</td><td class=\"py-3 px-4 text-sm\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<tr class=\"border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors group\"><td class=\"py-3 px-4\"><code class=\"bg-gray-900 text-green-400 px-2 py-1 rounded text-sm font-mono group-hover:bg-gray-800 transition-colors\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var22 string
-				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(formatBytes(record.Size))
+				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(path)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 178, Col: 66}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 286, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</td><td class=\"py-3 px-4 text-sm text-gray-600\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</code></td><td class=\"py-3 px-4 text-sm text-blue-400 font-mono\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var23 string
-				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(record.ModTime))
+				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(formatBytes(record.Size))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 179, Col: 82}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 289, Col: 92}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</td></tr>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</td><td class=\"py-3 px-4 text-sm text-gray-400 font-mono\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var24 string
+				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(record.ModTime))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 290, Col: 94}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</td></tr>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</tbody></table></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</tbody></table></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<p class=\"text-gray-500 italic py-4\">No files were added.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<div class=\"text-center py-8\"><span class=\"text-4xl text-gray-600\">📭</span><p class=\"text-gray-500 italic mt-2\">No files were added.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</div><!-- Modified Files --><div class=\"bg-white rounded-xl shadow-lg p-6 mb-8\"><h2 class=\"text-2xl font-bold text-gray-800 mb-4 flex items-center\"><span class=\"text-3xl mr-3\">🔄</span> Modified Files (")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</div></div><!-- Modified Files --><div class=\"bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700/50 p-6 mb-8 animate-fade-in\"><button onclick=\"toggleCollapse(&#39;modified-files&#39;)\" class=\"w-full text-left\"><h2 class=\"text-2xl font-bold text-gray-100 mb-4 flex items-center justify-between hover:text-yellow-400 transition-colors\"><span class=\"flex items-center\"><span class=\"text-3xl mr-3\">🔄</span> Modified Files <span class=\"ml-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var24 string
-		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(data.Result.Summary.ModifiedCount))
+		var templ_7745c5c3_Var25 string
+		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(data.Result.Summary.ModifiedCount))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 194, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 311, Col: 130}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, ")</h2>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</span></span> <span id=\"modified-files-icon\" class=\"text-gray-400 transition-transform duration-200\">▼</span></h2></button><div id=\"modified-files\" class=\"animate-slide-down\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if len(data.Result.Modified) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<div class=\"overflow-x-auto\"><table class=\"w-full\"><thead><tr class=\"bg-gray-50 border-b\"><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Path</th><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Size</th><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Changes</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<div class=\"overflow-x-auto\"><table class=\"w-full\"><thead><tr class=\"border-b border-gray-600\"><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Path</th><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Size</th><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Changes</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for path, change := range data.Result.Modified {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<tr class=\"border-b hover:bg-gray-50 transition-colors\"><td class=\"py-3 px-4 font-mono text-sm bg-gray-100 rounded px-2\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var25 string
-				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(path)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 210, Col: 17}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</td><td class=\"py-3 px-4 text-sm\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<tr class=\"border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors group\"><td class=\"py-3 px-4\"><code class=\"bg-gray-900 text-yellow-400 px-2 py-1 rounded text-sm font-mono group-hover:bg-gray-800 transition-colors\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var26 string
-				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(formatBytes(change.NewRecord.Size))
+				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(path)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 212, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 332, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</td><td class=\"py-3 px-4 text-sm text-gray-600\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</code></td><td class=\"py-3 px-4 text-sm text-blue-400 font-mono\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var27 string
-				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(strings.Join(change.Changes, ", "))
+				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(formatBytes(change.NewRecord.Size))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 214, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 335, Col: 102}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</td></tr>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</td><td class=\"py-3 px-4 text-sm text-gray-400\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				for i, ch := range change.Changes {
+					if i > 0 {
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "<span class=\"text-gray-600\">, </span>")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, " <span class=\"bg-orange-500/20 text-orange-300 px-1 rounded text-xs\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var28 string
+					templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(ch)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 341, Col: 86}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "</span>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</td></tr>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</tbody></table></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</tbody></table></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<p class=\"text-gray-500 italic py-4\">No files were modified.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<div class=\"text-center py-8\"><span class=\"text-4xl text-gray-600\">📝</span><p class=\"text-gray-500 italic mt-2\">No files were modified.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "</div><!-- Deleted Files --><div class=\"bg-white rounded-xl shadow-lg p-6 mb-8\"><h2 class=\"text-2xl font-bold text-gray-800 mb-4 flex items-center\"><span class=\"text-3xl mr-3\">❌</span> Deleted Files (")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</div></div><!-- Deleted Files --><div class=\"bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700/50 p-6 mb-8 animate-fade-in\"><button onclick=\"toggleCollapse(&#39;deleted-files&#39;)\" class=\"w-full text-left\"><h2 class=\"text-2xl font-bold text-gray-100 mb-4 flex items-center justify-between hover:text-red-400 transition-colors\"><span class=\"flex\n\n\t\t\t\t\t\t\titems-center\"><span class=\"text-3xl mr-3\">❌</span> Deleted Files <span class=\"ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var28 string
-		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(data.Result.Summary.DeletedCount))
+		var templ_7745c5c3_Var29 string
+		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(data.Result.Summary.DeletedCount))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 230, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 366, Col: 126}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, ")</h2>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</span></span> <span id=\"deleted-files-icon\" class=\"text-gray-400 transition-transform duration-200\">▼</span></h2></button><div id=\"deleted-files\" class=\"animate-slide-down\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if len(data.Result.Deleted) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<div class=\"overflow-x-auto\"><table class=\"w-full\"><thead><tr class=\"bg-gray-50 border-b\"><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Path</th><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Size</th><th class=\"text-left py-3 px-4 font-semibold text-gray-700\">Modified</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<div class=\"overflow-x-auto\"><table class=\"w-full\"><thead><tr class=\"border-b border-gray-600\"><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Path</th><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Size</th><th class=\"text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50\">Modified</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for path, record := range data.Result.Deleted {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<tr class=\"border-b hover:bg-gray-50 transition-colors\"><td class=\"py-3 px-4 font-mono text-sm bg-gray-100 rounded px-2\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var29 string
-				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(path)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 246, Col: 17}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</td><td class=\"py-3 px-4 text-sm\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<tr class=\"border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors group\"><td class=\"py-3 px-4\"><code class=\"bg-gray-900 text-red-400 px-2 py-1 rounded text-sm font-mono group-hover:bg-gray-800 transition-colors\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var30 string
-				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(formatBytes(record.Size))
+				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(path)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 248, Col: 66}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 387, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</td><td class=\"py-3 px-4 text-sm text-gray-600\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "</code></td><td class=\"py-3 px-4 text-sm text-blue-400 font-mono\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var31 string
-				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(record.ModTime))
+				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(formatBytes(record.Size))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 249, Col: 82}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 390, Col: 92}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "</td></tr>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "</td><td class=\"py-3 px-4 text-sm text-gray-400 font-mono\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var32 string
+				templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(record.ModTime))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 391, Col: 94}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</td></tr>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</tbody></table></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</tbody></table></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<p class=\"text-gray-500 italic py-4\">No files were deleted.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "<div class=\"text-center py-8\"><span class=\"text-4xl text-gray-600\">🗑️</span><p class=\"text-gray-500 italic mt-2\">No files were deleted.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "</div><!-- Footer --><div class=\"text-center py-8 text-gray-500\"><p class=\"text-sm\">Report generated by fsdiff • ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "</div></div><!-- Footer --><div class=\"text-center py-8 text-gray-500\"><p class=\"text-sm\">Report generated by fsdiff • ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var32 string
-		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(data.GeneratedAt))
+		var templ_7745c5c3_Var33 string
+		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(data.GeneratedAt))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 262, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `report.templ`, Line: 407, Col: 85}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</p></div></div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "</p></div></div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
