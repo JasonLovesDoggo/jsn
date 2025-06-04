@@ -1,8 +1,8 @@
 package scanner
 
 import (
-	"crypto/sha256"
 	"fmt"
+	"github.com/cespare/xxhash/v2"
 	"io"
 	"io/fs"
 	"os"
@@ -200,7 +200,7 @@ func (s *Scanner) ScanFilesystem(rootPath string) (*snapshot.Snapshot, error) {
 		snap.Stats.FileCount, snap.Stats.DirCount, formatBytes(snap.Stats.TotalSize))
 	fmt.Printf("   ⏱️  Duration: %v (%.0f files/sec)\n",
 		totalDuration, float64(snap.Stats.FileCount)/totalDuration.Seconds())
-	fmt.Printf("   🌳 Merkle root: %x\n", merkleRoot[:16])
+	fmt.Printf("   🌳 Merkle root: %x\n", merkleRoot)
 
 	if snap.Stats.ErrorCount > 0 {
 		fmt.Printf("   ⚠️  Errors: %d\n", snap.Stats.ErrorCount)
@@ -210,9 +210,9 @@ func (s *Scanner) ScanFilesystem(rootPath string) (*snapshot.Snapshot, error) {
 }
 
 // calculateSimpleMerkleRoot creates a simple merkle root without building full tree
-func (s *Scanner) calculateSimpleMerkleRoot(files map[string]*snapshot.FileRecord) [32]byte {
+func (s *Scanner) calculateSimpleMerkleRoot(files map[string]*snapshot.FileRecord) uint64 {
 	if len(files) == 0 {
-		return [32]byte{}
+		return uint64(0)
 	}
 
 	// Create a sorted list of all file hashes for consistent merkle root
@@ -229,12 +229,12 @@ func (s *Scanner) calculateSimpleMerkleRoot(files map[string]*snapshot.FileRecor
 	sort.Strings(allHashes)
 
 	// Create a single hash from all file hashes
-	hasher := sha256.New()
+	hasher := xxhash.New()
 	for _, hash := range allHashes {
-		hasher.Write([]byte(hash))
+		_, _ = hasher.Write([]byte(hash))
 	}
 
-	return sha256.Sum256(hasher.Sum(nil))
+	return xxhash.Sum64(hasher.Sum(nil))
 }
 
 // worker processes file jobs in parallel
@@ -307,6 +307,7 @@ func (s *Scanner) processFile(job FileJob, buffer []byte) FileResult {
 }
 
 // hashFile calculates SHA256 hash efficiently using provided buffer
+// HOT FILE, try to reduce file.read?
 func (s *Scanner) hashFile(path string, buffer []byte) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -314,11 +315,11 @@ func (s *Scanner) hashFile(path string, buffer []byte) (string, error) {
 	}
 	defer file.Close()
 
-	hash := sha256.New()
+	hash := xxhash.New()
 	for {
 		n, err := file.Read(buffer)
 		if n > 0 {
-			hash.Write(buffer[:n])
+			_, _ = hash.Write(buffer[:n])
 		}
 		if err == io.EOF {
 			break

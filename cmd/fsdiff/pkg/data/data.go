@@ -70,7 +70,7 @@ type ScanStats struct {
 type Snapshot struct {
 	SystemInfo system.SystemInfo      `json:"system_info"`
 	Files      map[string]*FileRecord `json:"files"`
-	MerkleRoot [32]byte               `json:"merkle_root"`
+	MerkleRoot uint64                 `json:"merkle_root"`
 	Tree       *merkle.Tree           `json:"-"` // Don't serialize the full tree
 	Stats      ScanStats              `json:"stats"`
 	Version    string                 `json:"version"`
@@ -81,7 +81,7 @@ type SnapshotHeader struct {
 	Version    string            `json:"version"`
 	SystemInfo system.SystemInfo `json:"system_info"`
 	Stats      ScanStats         `json:"stats"`
-	MerkleRoot [32]byte          `json:"merkle_root"`
+	MerkleRoot uint64            `json:"merkle_root"`
 	Created    time.Time         `json:"created"`
 }
 

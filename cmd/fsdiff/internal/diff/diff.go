@@ -138,8 +138,8 @@ func (d *Differ) compareMerkleTrees(baseline, current *snapshot.Snapshot, result
 
 	if d.config.Verbose {
 		fmt.Printf("🔍 Merkle roots differ - performing detailed comparison\n")
-		fmt.Printf("   Baseline: %x\n", baseline.MerkleRoot[:8])
-		fmt.Printf("   Current:  %x\n", current.MerkleRoot[:8])
+		fmt.Printf("   Baseline: %x\n", baseline.MerkleRoot)
+		fmt.Printf("   Current:  %x\n", current.MerkleRoot)
 	}
 
 	// Since merkle roots differ, fall back to brute force comparison

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/cespare/xxhash/v2"
 	"sort"
 
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
@@ -11,7 +12,7 @@ import (
 
 // SerializableNode represents a serializable node without circular references
 type SerializableNode struct {
-	Hash     [32]byte `json:"hash"`
+	Hash     uint64   `json:"hash"`
 	IsLeaf   bool     `json:"is_leaf"`
 	Path     string   `json:"path"`
 	Children []string `json:"children"` // Store child paths instead of pointers
@@ -22,7 +23,7 @@ type SerializableNode struct {
 type Tree struct {
 	Root       *Node                        `json:"-"` // Don't serialize the tree structure
 	Nodes      map[string]*SerializableNode `json:"nodes"`
-	RootHash   [32]byte                     `json:"root_hash"`
+	RootHash   uint64                       `json:"root_hash"`
 	Depth      int                          `json:"depth"`
 	LeafCount  int                          `json:"leaf_count"`
 	totalFiles int
@@ -30,7 +31,7 @@ type Tree struct {
 
 // Node represents a runtime node (not serialized)
 type Node struct {
-	Hash     [32]byte
+	Hash     uint64
 	IsLeaf   bool
 	Path     string
 	Children []*Node
@@ -43,7 +44,7 @@ type PathNode struct {
 	Name     string
 	Children map[string]*PathNode
 	Files    []*snapshot.FileRecord
-	Hash     [32]byte
+	Hash     uint64
 }
 
 // New creates a new Merkle tree
@@ -64,18 +65,18 @@ func (t *Tree) AddFile(path string, record *snapshot.FileRecord) {
 }
 
 // BuildTree constructs the Merkle tree from all added files
-func (t *Tree) BuildTree() [32]byte {
+func (t *Tree) BuildTree() uint64 {
 	// For large filesystems, we'll create a simplified hash-based approach
 	// instead of building the full tree structure to avoid memory issues
 
 	if t.totalFiles == 0 {
-		return [32]byte{}
+		return uint64{}
 	}
 
 	// Create a simple root hash based on total file count
 	// This is a simplified approach for the v1 implementation
 	hashData := fmt.Sprintf("fsdiff-merkle-root-files:%d", t.totalFiles)
-	rootHash := sha256.Sum256([]byte(hashData))
+	rootHash := xxhash.Sum64([]byte(hashData))
 
 	t.RootHash = rootHash
 	t.LeafCount = t.totalFiles
@@ -85,9 +86,9 @@ func (t *Tree) BuildTree() [32]byte {
 }
 
 // BuildTreeFromFiles constructs the tree from a file map (for loaded snapshots)
-func (t *Tree) BuildTreeFromFiles(files map[string]*snapshot.FileRecord) [32]byte {
+func (t *Tree) BuildTreeFromFiles(files map[string]*snapshot.FileRecord) uint64 {
 	if len(files) == 0 {
-		return [32]byte{}
+		return uint64{}
 	}
 
 	// Build a simplified path-based tree
@@ -196,9 +197,9 @@ func (t *Tree) convertToSerializable(pathNode *PathNode, fullPath string) {
 }
 
 // calculateRootHashFromNodes calculates root hash from all nodes
-func (t *Tree) calculateRootHashFromNodes() [32]byte {
+func (t *Tree) calculateRootHashFromNodes() uint64 {
 	if len(t.Nodes) == 0 {
-		return [32]byte{}
+		return uint64{}
 	}
 
 	// Sort node paths for consistent hashing
@@ -220,7 +221,7 @@ func (t *Tree) calculateRootHashFromNodes() [32]byte {
 
 // VerifyIntegrity verifies the integrity of the tree
 func (t *Tree) VerifyIntegrity() bool {
-	return len(t.Nodes) > 0 && t.RootHash != [32]byte{}
+	return len(t.Nodes) > 0 && t.RootHash != uint64{}
 }
 
 // CompareWith compares this tree with another tree
@@ -263,8 +264,8 @@ func (t *Tree) GetProof(path string) (*MerkleProof, error) {
 
 // TreeComparison represents the result of comparing two Merkle trees
 type TreeComparison struct {
-	LeftRoot    [32]byte
-	RightRoot   [32]byte
+	LeftRoot    uint64
+	RightRoot   uint64
 	Differences []PathDifference
 }
 
@@ -272,8 +273,8 @@ type TreeComparison struct {
 type PathDifference struct {
 	Path  string
 	Type  DiffType
-	Left  [32]byte
-	Right [32]byte
+	Left  uint64
+	Right uint64
 }
 
 // DiffType represents the type of difference
@@ -302,14 +303,14 @@ func (d DiffType) String() string {
 // MerkleProof represents a proof of inclusion in the Merkle tree
 type MerkleProof struct {
 	Path     string
-	LeafHash [32]byte
-	RootHash [32]byte
+	LeafHash uint64
+	RootHash uint64
 	Proof    []ProofElement
 }
 
 // ProofElement represents one element in a Merkle proof
 type ProofElement struct {
-	Hash     [32]byte
+	Hash     uint64
 	IsLeft   bool
 	NodePath string
 }
@@ -317,7 +318,7 @@ type ProofElement struct {
 // Verify verifies the Merkle proof
 func (p *MerkleProof) Verify() bool {
 	// Simplified verification for now
-	return p.LeafHash != [32]byte{} && p.RootHash != [32]byte{}
+	return p.LeafHash != uint64{} && p.RootHash != uint64{}
 }
 
 // PrintTree prints a simplified tree structure

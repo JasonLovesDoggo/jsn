@@ -34,16 +34,16 @@ type ScanStats struct {
 
 // SimpleMerkleData contains just the essential merkle information for serialization
 type SimpleMerkleData struct {
-	RootHash  [32]byte `json:"root_hash"`
-	LeafCount int      `json:"leaf_count"`
-	Depth     int      `json:"depth"`
+	RootHash  uint64 `json:"root_hash"`
+	LeafCount int    `json:"leaf_count"`
+	Depth     int    `json:"depth"`
 }
 
 // Snapshot represents a complete filesystem snapshot
 type Snapshot struct {
 	SystemInfo system.SystemInfo      `json:"system_info"`
 	Files      map[string]*FileRecord `json:"files"`
-	MerkleRoot [32]byte               `json:"merkle_root"`
+	MerkleRoot uint64                 `json:"merkle_root"`
 	MerkleData SimpleMerkleData       `json:"merkle_data"` // Store essential merkle info
 	Tree       interface{}            `json:"-"`           // Don't serialize tree - will be rebuilt
 	Stats      ScanStats              `json:"stats"`
@@ -55,7 +55,7 @@ type SnapshotHeader struct {
 	Version    string            `json:"version"`
 	SystemInfo system.SystemInfo `json:"system_info"`
 	Stats      ScanStats         `json:"stats"`
-	MerkleRoot [32]byte          `json:"merkle_root"`
+	MerkleRoot uint64            `json:"merkle_root"`
 	Created    time.Time         `json:"created"`
 }
 
@@ -176,7 +176,7 @@ func Load(filename string) (*Snapshot, error) {
 
 // SimpleMerkleTree is a minimal tree representation for compatibility
 type SimpleMerkleTree struct {
-	RootHash  [32]byte
+	RootHash  uint64
 	LeafCount int
 	Depth     int
 }
@@ -195,8 +195,8 @@ func (t *SimpleMerkleTree) CompareWith(other interface{}) interface{} {
 
 // SimpleTreeComparison represents a basic tree comparison
 type SimpleTreeComparison struct {
-	LeftRoot  [32]byte
-	RightRoot [32]byte
+	LeftRoot  uint64
+	RightRoot uint64
 	Same      bool
 }
 

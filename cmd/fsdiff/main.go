@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
+	"net/http"
 	"os"
 	"runtime"
 	"strings"
@@ -11,6 +13,8 @@ import (
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/report"
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/scanner"
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
+
+	_ "net/http/pprof"
 )
 
 var (
@@ -21,6 +25,9 @@ var (
 )
 
 func main() {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil)) // Starts pprof server
+	}()
 	flag.Parse()
 
 	if len(flag.Args()) < 1 {
