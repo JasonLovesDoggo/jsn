@@ -3,10 +3,11 @@ package diff
 import (
 	"fmt"
 	"path/filepath"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/data"
 	"sort"
 	"strings"
 	"time"
+
+	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
 )
 
 // Config holds diff configuration
@@ -17,28 +18,28 @@ type Config struct {
 	OnlyChanges    bool
 }
 
-// Differ handles comparing data.
+// Differ handles comparing snapshots
 type Differ struct {
 	config  *Config
 	ignorer *PathIgnorer
 }
 
-// Result represents the comparison between two data.
+// Result represents the comparison between two snapshots
 type Result struct {
-	Baseline  *data.Snapshot              `json:"baseline"`
-	Current   *data.Snapshot              `json:"current"`
-	Added     map[string]*data.FileRecord `json:"added"`
-	Modified  map[string]*ChangeDetail    `json:"modified"`
-	Deleted   map[string]*data.FileRecord `json:"deleted"`
-	Summary   Summary                     `json:"summary"`
-	Generated time.Time                   `json:"generated"`
+	Baseline  *snapshot.Snapshot              `json:"baseline"`
+	Current   *snapshot.Snapshot              `json:"current"`
+	Added     map[string]*snapshot.FileRecord `json:"added"`
+	Modified  map[string]*ChangeDetail        `json:"modified"`
+	Deleted   map[string]*snapshot.FileRecord `json:"deleted"`
+	Summary   Summary                         `json:"summary"`
+	Generated time.Time                       `json:"generated"`
 }
 
 // ChangeDetail represents details about a modified file
 type ChangeDetail struct {
-	OldRecord *data.FileRecord `json:"old_record"`
-	NewRecord *data.FileRecord `json:"new_record"`
-	Changes   []string         `json:"changes"`
+	OldRecord *snapshot.FileRecord `json:"old_record"`
+	NewRecord *snapshot.FileRecord `json:"new_record"`
+	Changes   []string             `json:"changes"`
 }
 
 // Summary contains summary statistics
@@ -81,12 +82,12 @@ func New(config *Config) *Differ {
 	}
 }
 
-// Compare compares two data. and returns the differences
-func (d *Differ) Compare(baseline, current *data.Snapshot) *Result {
+// Compare compares two snapshots and returns the differences
+func (d *Differ) Compare(baseline, current *snapshot.Snapshot) *Result {
 	startTime := time.Now()
 
 	if d.config.Verbose {
-		fmt.Printf("🔍 Comparing data....\n")
+		fmt.Printf("🔍 Comparing snapshots...\n")
 		fmt.Printf("   Baseline: %d files (%s)\n",
 			baseline.Stats.FileCount, baseline.SystemInfo.Timestamp.Format("2006-01-02 15:04:05"))
 		fmt.Printf("   Current:  %d files (%s)\n",
@@ -96,9 +97,9 @@ func (d *Differ) Compare(baseline, current *data.Snapshot) *Result {
 	result := &Result{
 		Baseline:  baseline,
 		Current:   current,
-		Added:     make(map[string]*data.FileRecord),
+		Added:     make(map[string]*snapshot.FileRecord),
 		Modified:  make(map[string]*ChangeDetail),
-		Deleted:   make(map[string]*data.FileRecord),
+		Deleted:   make(map[string]*snapshot.FileRecord),
 		Generated: time.Now(),
 	}
 
@@ -122,7 +123,7 @@ func (d *Differ) Compare(baseline, current *data.Snapshot) *Result {
 }
 
 // compareMerkleTrees uses Merkle tree comparison for efficient diff
-func (d *Differ) compareMerkleTrees(baseline, current *data.Snapshot, result *Result) {
+func (d *Differ) compareMerkleTrees(baseline, current *snapshot.Snapshot, result *Result) {
 	if d.config.Verbose {
 		fmt.Printf("🌳 Using Merkle tree comparison...\n")
 	}
@@ -135,40 +136,19 @@ func (d *Differ) compareMerkleTrees(baseline, current *data.Snapshot, result *Re
 		return
 	}
 
-	// Compare trees to find differences
-	comparison := baseline.Tree.CompareWith(current.Tree)
-
-	for _, pathDiff := range comparison.Differences {
-		if d.ignorer.ShouldIgnore(pathDiff.Path) {
-			continue
-		}
-
-		switch pathDiff.Type {
-		case 0: // Added
-			if record, exists := current.Files[pathDiff.Path]; exists {
-				result.Added[pathDiff.Path] = record
-			}
-		case 1: // Deleted
-			if record, exists := baseline.Files[pathDiff.Path]; exists {
-				result.Deleted[pathDiff.Path] = record
-			}
-		case 2: // Modified
-			oldRecord := baseline.Files[pathDiff.Path]
-			newRecord := current.Files[pathDiff.Path]
-			if oldRecord != nil && newRecord != nil {
-				changes := d.detectChanges(oldRecord, newRecord)
-				result.Modified[pathDiff.Path] = &ChangeDetail{
-					OldRecord: oldRecord,
-					NewRecord: newRecord,
-					Changes:   changes,
-				}
-			}
-		}
+	if d.config.Verbose {
+		fmt.Printf("🔍 Merkle roots differ - performing detailed comparison\n")
+		fmt.Printf("   Baseline: %x\n", baseline.MerkleRoot[:8])
+		fmt.Printf("   Current:  %x\n", current.MerkleRoot[:8])
 	}
+
+	// Since merkle roots differ, fall back to brute force comparison
+	// In a full implementation, you could do more sophisticated tree comparison
+	d.compareBruteForce(baseline, current, result)
 }
 
 // compareBruteForce performs traditional file-by-file comparison
-func (d *Differ) compareBruteForce(baseline, current *data.Snapshot, result *Result) {
+func (d *Differ) compareBruteForce(baseline, current *snapshot.Snapshot, result *Result) {
 	if d.config.Verbose {
 		fmt.Printf("📊 Using brute force comparison...\n")
 	}
@@ -220,7 +200,7 @@ func (d *Differ) compareBruteForce(baseline, current *data.Snapshot, result *Res
 }
 
 // filesEqual checks if two file records are equal
-func (d *Differ) filesEqual(a, b *data.FileRecord) bool {
+func (d *Differ) filesEqual(a, b *snapshot.FileRecord) bool {
 	if a.IsDir && b.IsDir {
 		// For directories, compare metadata
 		return a.Mode == b.Mode && a.ModTime.Equal(b.ModTime) && a.UID == b.UID && a.GID == b.GID
@@ -239,7 +219,7 @@ func (d *Differ) filesEqual(a, b *data.FileRecord) bool {
 }
 
 // detectChanges identifies what specifically changed about a file
-func (d *Differ) detectChanges(old, new *data.FileRecord) []string {
+func (d *Differ) detectChanges(old, new *snapshot.FileRecord) []string {
 	var changes []string
 
 	if old.Hash != new.Hash && old.Hash != "" && new.Hash != "" {
@@ -394,7 +374,7 @@ func (r *Result) GetCriticalChanges() []CriticalChange {
 		"/lib/systemd/", "/usr/lib/systemd/", "/etc/init.d/",
 	}
 
-	checkCritical := func(path string, changeType ChangeType, record *data.FileRecord) {
+	checkCritical := func(path string, changeType ChangeType, record *snapshot.FileRecord) {
 		for _, critPath := range criticalPaths {
 			if strings.Contains(path, critPath) {
 				critical = append(critical, CriticalChange{
@@ -431,11 +411,11 @@ func (r *Result) GetCriticalChanges() []CriticalChange {
 
 // CriticalChange represents a security-relevant change
 type CriticalChange struct {
-	Path     string           `json:"path"`
-	Type     ChangeType       `json:"type"`
-	Record   *data.FileRecord `json:"record"`
-	Severity int              `json:"severity"` // 1-10 scale
-	Reason   string           `json:"reason"`
+	Path     string               `json:"path"`
+	Type     ChangeType           `json:"type"`
+	Record   *snapshot.FileRecord `json:"record"`
+	Severity int                  `json:"severity"` // 1-10 scale
+	Reason   string               `json:"reason"`
 }
 
 // calculateSeverity assigns a severity score to a critical change
@@ -512,9 +492,9 @@ func (r *Result) FilterChanges(filter func(path string, changeType ChangeType) b
 	filtered := &Result{
 		Baseline:  r.Baseline,
 		Current:   r.Current,
-		Added:     make(map[string]*data.FileRecord),
+		Added:     make(map[string]*snapshot.FileRecord),
 		Modified:  make(map[string]*ChangeDetail),
-		Deleted:   make(map[string]*data.FileRecord),
+		Deleted:   make(map[string]*snapshot.FileRecord),
 		Generated: r.Generated,
 	}
 

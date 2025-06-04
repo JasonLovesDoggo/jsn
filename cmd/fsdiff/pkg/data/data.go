@@ -3,8 +3,9 @@ package data
 import (
 	"fmt"
 	"io/fs"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/merkle"
 	"time"
+
+	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/merkle"
 
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/system"
 )

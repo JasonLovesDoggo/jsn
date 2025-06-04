@@ -281,9 +281,9 @@ func printDiffSummary(result *diff.Result) {
 	}
 
 	// Show sample of changes
-	showSampleChanges("Added", castToAnyMap(result.Added), 5)
-	showSampleChanges("Modified", castToAnyMap(result.Modified), 5)
-	showSampleChanges("Deleted", castToAnyMap(result.Deleted), 5)
+	showSampleChanges("Added", result.Added, 5)
+	showSampleChanges("Modified", result.Modified, 5)
+	showSampleChanges("Deleted", result.Deleted, 5)
 }
 
 type CriticalChange struct {
@@ -325,30 +325,47 @@ func findCriticalChanges(result *diff.Result) []CriticalChange {
 
 	return critical
 }
-func showSampleChanges(changeType string, changes map[string]any, limit int) {
-	if len(changes) == 0 {
+
+func showSampleChanges(changeType string, changes interface{}, limit int) {
+	var count int
+	var paths []string
+
+	// Handle different types of change maps
+	switch c := changes.(type) {
+	case map[string]*snapshot.FileRecord:
+		count = len(c)
+		for path := range c {
+			paths = append(paths, path)
+			if len(paths) >= limit {
+				break
+			}
+		}
+	case map[string]*diff.ChangeDetail:
+		count = len(c)
+		for path := range c {
+			paths = append(paths, path)
+			if len(paths) >= limit {
+				break
+			}
+		}
+	default:
+		return // Unknown type
+	}
+
+	if count == 0 {
 		return
 	}
 
-	fmt.Printf("📁 %s (%d total):\n", changeType, len(changes))
-	count := 0
-	for path := range changes {
-		if count >= limit {
-			fmt.Printf("   ... and %d more\n", len(changes)-limit)
+	fmt.Printf("📁 %s (%d total):\n", changeType, count)
+	for i, path := range paths {
+		if i >= limit {
+			fmt.Printf("   ... and %d more\n", count-limit)
 			break
 		}
 		icon := getChangeIcon(changeType)
 		fmt.Printf("   %s %s\n", icon, path)
-		count++
 	}
 	fmt.Println()
-}
-func castToAnyMap[T any](m map[string]T) map[string]any {
-	out := make(map[string]any, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-	return out
 }
 
 func getChangeIcon(changeType string) string {

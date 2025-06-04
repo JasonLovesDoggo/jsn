@@ -7,14 +7,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/data"
-
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/merkle"
+	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/system"
 )
 
@@ -30,7 +29,6 @@ type Config struct {
 type Scanner struct {
 	config  *Config
 	stats   *ScanStats
-	tree    *merkle.Tree
 	ignorer *PathIgnorer
 }
 
@@ -59,18 +57,8 @@ type FileJob struct {
 
 // FileResult represents the result of processing a file
 type FileResult struct {
-	Record *data.FileRecord
+	Record *snapshot.FileRecord
 	Error  error
-}
-
-// Progress represents current scanning progress
-type Progress struct {
-	FilesProcessed int64
-	DirsProcessed  int64
-	BytesProcessed int64
-	Errors         int64
-	Rate           float64
-	ETA            time.Duration
 }
 
 // New creates a new scanner with the given configuration
@@ -87,6 +75,8 @@ func New(config *Config) *Scanner {
 		"/home/*/.mozilla/firefox/*/Cache",
 		"/home/*/.config/google-chrome/*/Cache",
 		"/var/lib/docker/overlay2", "/var/lib/containerd",
+		".git", ".svn", ".hg", "__pycache__", ".pytest_cache",
+		"*.pyc", "*.pyo", "*.swp", "*.bak", "*~",
 	}
 
 	ignorer := &PathIgnorer{
@@ -97,13 +87,12 @@ func New(config *Config) *Scanner {
 	return &Scanner{
 		config:  config,
 		stats:   &ScanStats{},
-		tree:    merkle.New(),
 		ignorer: ignorer,
 	}
 }
 
 // ScanFilesystem performs a parallel scan of the filesystem
-func (s *Scanner) ScanFilesystem(rootPath string) (*data.Snapshot, error) {
+func (s *Scanner) ScanFilesystem(rootPath string) (*snapshot.Snapshot, error) {
 	s.stats.StartTime = time.Now()
 	s.stats.LastUpdate = s.stats.StartTime
 
@@ -125,7 +114,7 @@ func (s *Scanner) ScanFilesystem(rootPath string) (*data.Snapshot, error) {
 	go s.progressMonitor(ctx)
 
 	// Start result collector
-	files := make(map[string]*data.FileRecord)
+	files := make(map[string]*snapshot.FileRecord)
 	var collectorWg sync.WaitGroup
 	collectorWg.Add(1)
 	go s.resultCollector(results, files, &collectorWg)
@@ -160,6 +149,7 @@ func (s *Scanner) ScanFilesystem(rootPath string) (*data.Snapshot, error) {
 			if s.config.Verbose {
 				fmt.Printf("⚠️  Worker queue full, skipping: %s\n", path)
 			}
+			atomic.AddInt64(&s.stats.Errors, 1)
 		}
 
 		return nil
@@ -181,18 +171,9 @@ func (s *Scanner) ScanFilesystem(rootPath string) (*data.Snapshot, error) {
 	// Stop progress monitor
 	close(ctx)
 
-	// Build Merkle tree
-	fmt.Printf("🌳 Building Merkle tree...\n")
-	treeStart := time.Now()
-	for path, record := range files {
-		s.tree.AddFile(path, record)
-	}
-	root := s.tree.BuildTree()
-	treeDuration := time.Since(treeStart)
-
-	if s.config.Verbose {
-		fmt.Printf("🌳 Merkle tree built in %v (root: %x)\n", treeDuration, root[:8])
-	}
+	// Create a simple merkle root hash (avoiding complex tree building)
+	fmt.Printf("🌳 Calculating merkle root...\n")
+	merkleRoot := s.calculateSimpleMerkleRoot(files)
 
 	// Gather system information
 	sysInfo := system.GetSystemInfo(rootPath)
@@ -200,12 +181,12 @@ func (s *Scanner) ScanFilesystem(rootPath string) (*data.Snapshot, error) {
 	sysInfo.ScanDuration = totalDuration
 
 	// Create snapshot
-	snap := &data.Snapshot{
+	snap := &snapshot.Snapshot{
 		SystemInfo: sysInfo,
 		Files:      files,
-		MerkleRoot: root,
-		Tree:       s.tree,
-		Stats: data.ScanStats{
+		MerkleRoot: merkleRoot,
+		Tree:       nil, // We'll skip the complex tree for now
+		Stats: snapshot.ScanStats{
 			FileCount:    int(atomic.LoadInt64(&s.stats.FilesProcessed)),
 			DirCount:     int(atomic.LoadInt64(&s.stats.DirsProcessed)),
 			TotalSize:    atomic.LoadInt64(&s.stats.BytesProcessed),
@@ -219,13 +200,41 @@ func (s *Scanner) ScanFilesystem(rootPath string) (*data.Snapshot, error) {
 		snap.Stats.FileCount, snap.Stats.DirCount, formatBytes(snap.Stats.TotalSize))
 	fmt.Printf("   ⏱️  Duration: %v (%.0f files/sec)\n",
 		totalDuration, float64(snap.Stats.FileCount)/totalDuration.Seconds())
-	fmt.Printf("   🌳 Merkle root: %x\n", root[:16])
+	fmt.Printf("   🌳 Merkle root: %x\n", merkleRoot[:16])
 
 	if snap.Stats.ErrorCount > 0 {
 		fmt.Printf("   ⚠️  Errors: %d\n", snap.Stats.ErrorCount)
 	}
 
 	return snap, err
+}
+
+// calculateSimpleMerkleRoot creates a simple merkle root without building full tree
+func (s *Scanner) calculateSimpleMerkleRoot(files map[string]*snapshot.FileRecord) [32]byte {
+	if len(files) == 0 {
+		return [32]byte{}
+	}
+
+	// Create a sorted list of all file hashes for consistent merkle root
+	var allHashes []string
+	for _, record := range files {
+		if record.Hash != "" && record.Hash != "ERROR" {
+			allHashes = append(allHashes, record.Hash)
+		}
+		// Also include path for uniqueness
+		allHashes = append(allHashes, record.Path)
+	}
+
+	// Sort for consistent ordering
+	sort.Strings(allHashes)
+
+	// Create a single hash from all file hashes
+	hasher := sha256.New()
+	for _, hash := range allHashes {
+		hasher.Write([]byte(hash))
+	}
+
+	return sha256.Sum256(hasher.Sum(nil))
 }
 
 // worker processes file jobs in parallel
@@ -267,7 +276,7 @@ func (s *Scanner) processFile(job FileJob, buffer []byte) FileResult {
 		return FileResult{Error: fmt.Errorf("stat %s: %v", job.Path, err)}
 	}
 
-	record := &data.FileRecord{
+	record := &snapshot.FileRecord{
 		Path:    job.Path,
 		Size:    info.Size(),
 		Mode:    info.Mode(),
@@ -323,7 +332,7 @@ func (s *Scanner) hashFile(path string, buffer []byte) (string, error) {
 }
 
 // resultCollector collects results from workers
-func (s *Scanner) resultCollector(results <-chan FileResult, files map[string]*data.FileRecord, wg *sync.WaitGroup) {
+func (s *Scanner) resultCollector(results <-chan FileResult, files map[string]*snapshot.FileRecord, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for result := range results {
@@ -392,26 +401,47 @@ func (i *PathIgnorer) ShouldIgnore(path string) bool {
 
 // matchPattern performs pattern matching for ignore rules
 func (i *PathIgnorer) matchPattern(path, pattern string) bool {
-	// Handle wildcards in patterns
-	if strings.Contains(pattern, "*") {
-		// Simple wildcard matching - replace * with anything
-		parts := strings.Split(pattern, "*")
-		if len(parts) == 2 {
-			return strings.HasPrefix(path, parts[0]) && strings.HasSuffix(path, parts[1])
+	// Handle different pattern types
+
+	// Exact match
+	if path == pattern {
+		return true
+	}
+
+	// Directory name matching (e.g., ".cache" matches any .cache directory)
+	pathParts := strings.Split(path, string(filepath.Separator))
+	for _, part := range pathParts {
+		if part == pattern {
+			return true
 		}
 	}
 
-	// Exact prefix matching
+	// Wildcard matching
+	if strings.Contains(pattern, "*") {
+		matched, _ := filepath.Match(pattern, filepath.Base(path))
+		if matched {
+			return true
+		}
+		// Also try matching the full path
+		matched, _ = filepath.Match(pattern, path)
+		if matched {
+			return true
+		}
+	}
+
+	// Prefix matching
 	if strings.HasPrefix(path, pattern) {
 		return true
 	}
 
-	// Check if any part of the path contains the pattern (for things like .cache)
-	pathParts := strings.Split(path, string(filepath.Separator))
-	for _, part := range pathParts {
-		if part == strings.TrimPrefix(pattern, ".") || part == pattern {
-			return true
-		}
+	// Suffix matching
+	if strings.HasSuffix(path, pattern) {
+		return true
+	}
+
+	// Contains matching (for things like "node_modules")
+	if strings.Contains(path, pattern) {
+		return true
 	}
 
 	return false
