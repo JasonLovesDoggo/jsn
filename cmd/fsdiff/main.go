@@ -1,505 +1,378 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/gob"
+	"flag"
 	"fmt"
-	"io"
-	"io/fs"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
+
+	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/diff"
+	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/report"
+	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/scanner"
+	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
 )
 
-// FileRecord represents a single file's metadata and hash
-type FileRecord struct {
-	Path    string      `json:"path"`
-	Hash    string      `json:"hash"`
-	Size    int64       `json:"size"`
-	Mode    fs.FileMode `json:"mode"`
-	ModTime time.Time   `json:"mod_time"`
-	IsDir   bool        `json:"is_dir"`
-	UID     int         `json:"uid,omitempty"`
-	GID     int         `json:"gid,omitempty"`
-}
+var (
+	version = "2.0.0"
+	workers = flag.Int("workers", runtime.NumCPU()*2, "Number of worker goroutines")
+	verbose = flag.Bool("v", false, "Verbose output")
+	ignore  = flag.String("ignore", "", "Comma-separated list of paths/patterns to ignore (e.g., '.cache,node_modules,*.log')")
+)
 
-// SystemInfo contains metadata about the system when snapshot was taken
-type SystemInfo struct {
-	Hostname     string        `json:"hostname"`
-	OS           string        `json:"os"`
-	Arch         string        `json:"arch"`
-	Distro       string        `json:"distro"`
-	KernelVer    string        `json:"kernel_version"`
-	Timestamp    time.Time     `json:"timestamp"`
-	ScanRoot     string        `json:"scan_root"`
-	TotalFiles   int           `json:"total_files"`
-	TotalDirs    int           `json:"total_dirs"`
-	ScanDuration time.Duration `json:"scan_duration"`
-}
+func main() {
+	flag.Parse()
 
-// Snapshot represents a complete filesystem snapshot
-type Snapshot struct {
-	SystemInfo SystemInfo             `json:"system_info"`
-	Files      map[string]*FileRecord `json:"files"`
-}
-
-// DiffResult represents the comparison between two snapshots
-type DiffResult struct {
-	BaselineInfo SystemInfo             `json:"baseline_info"`
-	CurrentInfo  SystemInfo             `json:"current_info"`
-	Added        map[string]*FileRecord `json:"added"`
-	Modified     map[string]*FileRecord `json:"modified"`
-	Deleted      map[string]*FileRecord `json:"deleted"`
-	Summary      DiffSummary            `json:"summary"`
-}
-
-type DiffSummary struct {
-	AddedCount    int `json:"added_count"`
-	ModifiedCount int `json:"modified_count"`
-	DeletedCount  int `json:"deleted_count"`
-	TotalChanges  int `json:"total_changes"`
-}
-
-// Default exclusions for common system directories that change frequently
-var defaultExclusions = []string{
-	"/proc",
-	"/sys",
-	"/dev",
-	"/tmp",
-	"/var/tmp",
-	"/run",
-	"/var/run",
-	"/var/log",
-	"/var/cache",
-	"/var/lib/dhcp",
-	"/home/*/.cache",
-	"/home/*/.local/share/Trash",
-	"/home/*/.mozilla/firefox/*/Cache",
-	"/home/*/.config/google-chrome/*/Cache",
-}
-
-// shouldExclude checks if a path should be excluded from scanning
-func shouldExclude(path string) bool {
-	for _, exclusion := range defaultExclusions {
-		// Simple wildcard matching
-		if strings.Contains(exclusion, "*") {
-			pattern := strings.Replace(exclusion, "*", "", -1)
-			if strings.Contains(path, pattern) {
-				return true
-			}
-		} else if strings.HasPrefix(path, exclusion) {
-			return true
-		}
+	if len(flag.Args()) < 1 {
+		printUsage()
+		os.Exit(1)
 	}
-	return false
+
+	command := flag.Args()[0]
+
+	switch command {
+	case "snapshot":
+		handleSnapshot()
+	case "diff":
+		handleDiff()
+	case "live":
+		handleLive()
+	case "version":
+		fmt.Printf("fsdiff version %s\n", version)
+	default:
+		fmt.Printf("Unknown command: %s\n", command)
+		printUsage()
+		os.Exit(1)
+	}
 }
 
-// hashFile calculates SHA256 hash of a file
-func hashFile(path string) (string, error) {
-	file, err := os.Open(path)
+func printUsage() {
+	fmt.Printf("Filesystem Diff Tool v%s\n\n", version)
+	fmt.Println("USAGE:")
+	fmt.Println("  fsdiff [options] <command> [args...]")
+	fmt.Println("")
+	fmt.Println("COMMANDS:")
+	fmt.Println("  snapshot <root_path> <output_file>    Create filesystem snapshot")
+	fmt.Println("  diff <baseline> <current> [report]    Compare two snapshots")
+	fmt.Println("  live <baseline> <root_path> [report]  Compare baseline to live filesystem")
+	fmt.Println("  version                               Show version information")
+	fmt.Println("")
+	fmt.Println("OPTIONS:")
+	fmt.Printf("  -workers int    Number of parallel workers (default: %d)\n", runtime.NumCPU()*2)
+	fmt.Println("  -v              Verbose output")
+	fmt.Println("  -ignore string  Comma-separated ignore patterns (e.g., '.cache,*.tmp')")
+	fmt.Println("")
+	fmt.Println("EXAMPLES:")
+	fmt.Println("  fsdiff snapshot / baseline.snap")
+	fmt.Println("  fsdiff diff baseline.snap current.snap changes.html")
+	fmt.Println("  fsdiff -ignore '.cache,node_modules' live baseline.snap /")
+	fmt.Println("  fsdiff -workers 8 -v snapshot /home/user user-snapshot.snap")
+}
+
+func handleSnapshot() {
+	args := flag.Args()[1:]
+	if len(args) != 2 {
+		fmt.Println("Usage: fsdiff snapshot <root_path> <output_file>")
+		os.Exit(1)
+	}
+
+	rootPath := args[0]
+	outputFile := args[1]
+
+	// Parse ignore patterns
+	ignorePatterns := parseIgnorePatterns(*ignore)
+
+	// Create scanner with configuration
+	config := &scanner.Config{
+		Workers:        *workers,
+		Verbose:        *verbose,
+		IgnorePatterns: ignorePatterns,
+	}
+
+	fmt.Printf("🔍 Scanning filesystem: %s\n", rootPath)
+	fmt.Printf("⚙️  Using %d workers\n", *workers)
+	if len(ignorePatterns) > 0 {
+		fmt.Printf("🚫 Ignoring patterns: %s\n", strings.Join(ignorePatterns, ", "))
+	}
+
+	s := scanner.New(config)
+	snap, err := s.ScanFilesystem(rootPath)
 	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
+		fmt.Printf("❌ Error scanning filesystem: %v\n", err)
+		os.Exit(1)
 	}
 
-	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+	fmt.Printf("💾 Saving snapshot to: %s\n", outputFile)
+	if err := snapshot.Save(snap, outputFile); err != nil {
+		fmt.Printf("❌ Error saving snapshot: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("✅ Snapshot created successfully!\n")
+	fmt.Printf("   Files: %d, Directories: %d\n", snap.Stats.FileCount, snap.Stats.DirCount)
+	fmt.Printf("   Size: %s, Duration: %v\n", formatBytes(snap.Stats.TotalSize), snap.Stats.ScanDuration)
 }
 
-// getSystemInfo gathers system metadata
-func getSystemInfo(scanRoot string) SystemInfo {
-	hostname, _ := os.Hostname()
+func handleDiff() {
+	args := flag.Args()[1:]
+	if len(args) < 2 || len(args) > 3 {
+		fmt.Println("Usage: fsdiff diff <baseline> <current> [report_file]")
+		os.Exit(1)
+	}
 
-	// Try to detect Linux distro
-	distro := "unknown"
-	if data, err := os.ReadFile("/etc/os-release"); err == nil {
-		lines := strings.Split(string(data), "\n")
-		for _, line := range lines {
-			if strings.HasPrefix(line, "PRETTY_NAME=") {
-				distro = strings.Trim(strings.Split(line, "=")[1], "\"")
-				break
-			}
+	baselineFile := args[0]
+	currentFile := args[1]
+	reportFile := ""
+	if len(args) == 3 {
+		reportFile = args[2]
+	}
+
+	// Parse ignore patterns for diff
+	ignorePatterns := parseIgnorePatterns(*ignore)
+
+	fmt.Printf("📖 Loading baseline: %s\n", baselineFile)
+	baseline, err := snapshot.Load(baselineFile)
+	if err != nil {
+		fmt.Printf("❌ Error loading baseline: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("📖 Loading current: %s\n", currentFile)
+	current, err := snapshot.Load(currentFile)
+	if err != nil {
+		fmt.Printf("❌ Error loading current snapshot: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("🔍 Comparing snapshots...\n")
+	config := &diff.Config{
+		IgnorePatterns: ignorePatterns,
+		Verbose:        *verbose,
+	}
+
+	d := diff.New(config)
+	result := d.Compare(baseline, current)
+
+	// Print summary
+	printDiffSummary(result)
+
+	// Generate report if requested
+	if reportFile != "" {
+		fmt.Printf("📄 Generating report: %s\n", reportFile)
+		if err := report.GenerateHTML(result, reportFile); err != nil {
+			fmt.Printf("❌ Error generating report: %v\n", err)
+			os.Exit(1)
 		}
-	}
-
-	// Try to get kernel version
-	kernelVer := "unknown"
-	if data, err := os.ReadFile("/proc/version"); err == nil {
-		kernelVer = strings.Split(string(data), " ")[2]
-	}
-
-	return SystemInfo{
-		Hostname:  hostname,
-		OS:        runtime.GOOS,
-		Arch:      runtime.GOARCH,
-		Distro:    distro,
-		KernelVer: kernelVer,
-		Timestamp: time.Now(),
-		ScanRoot:  scanRoot,
+		fmt.Printf("✅ Report saved successfully!\n")
 	}
 }
 
-// createSnapshot scans the filesystem and creates a snapshot
-func createSnapshot(rootPath string) (*Snapshot, error) {
-	fmt.Printf("Creating filesystem snapshot of %s...\n", rootPath)
-	startTime := time.Now()
+func handleLive() {
+	args := flag.Args()[1:]
+	if len(args) < 2 || len(args) > 3 {
+		fmt.Println("Usage: fsdiff live <baseline> <root_path> [report_file]")
+		os.Exit(1)
+	}
 
-	systemInfo := getSystemInfo(rootPath)
-	files := make(map[string]*FileRecord)
+	baselineFile := args[0]
+	rootPath := args[1]
+	reportFile := ""
+	if len(args) == 3 {
+		reportFile = args[2]
+	}
 
-	totalFiles := 0
-	totalDirs := 0
+	// Parse ignore patterns
+	ignorePatterns := parseIgnorePatterns(*ignore)
 
-	err := filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			fmt.Printf("Warning: Cannot access %s: %v\n", path, err)
-			return nil // Continue scanning
+	fmt.Printf("📖 Loading baseline: %s\n", baselineFile)
+	baseline, err := snapshot.Load(baselineFile)
+	if err != nil {
+		fmt.Printf("❌ Error loading baseline: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("🔍 Scanning current filesystem: %s\n", rootPath)
+	scanConfig := &scanner.Config{
+		Workers:        *workers,
+		Verbose:        *verbose,
+		IgnorePatterns: ignorePatterns,
+	}
+
+	s := scanner.New(scanConfig)
+	current, err := s.ScanFilesystem(rootPath)
+	if err != nil {
+		fmt.Printf("❌ Error scanning filesystem: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("🔍 Comparing with baseline...\n")
+	diffConfig := &diff.Config{
+		IgnorePatterns: ignorePatterns,
+		Verbose:        *verbose,
+	}
+
+	d := diff.New(diffConfig)
+	result := d.Compare(baseline, current)
+
+	// Print summary
+	printDiffSummary(result)
+
+	// Generate report if requested
+	if reportFile != "" {
+		fmt.Printf("📄 Generating report: %s\n", reportFile)
+		if err := report.GenerateHTML(result, reportFile); err != nil {
+			fmt.Printf("❌ Error generating report: %v\n", err)
+			os.Exit(1)
 		}
+		fmt.Printf("✅ Report saved successfully!\n")
+	}
+}
 
-		// Check exclusions
-		if shouldExclude(path) {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		// Get file info
-		info, err := d.Info()
-		if err != nil {
-			fmt.Printf("Warning: Cannot get info for %s: %v\n", path, err)
-			return nil
-		}
-
-		record := &FileRecord{
-			Path:    path,
-			Size:    info.Size(),
-			Mode:    info.Mode(),
-			ModTime: info.ModTime(),
-			IsDir:   info.IsDir(),
-		}
-
-		// Calculate hash for regular files only
-		if info.Mode().IsRegular() {
-			hash, err := hashFile(path)
-			if err != nil {
-				fmt.Printf("Warning: Cannot hash %s: %v\n", path, err)
-				record.Hash = "ERROR"
-			} else {
-				record.Hash = hash
-			}
-			totalFiles++
-		} else if info.IsDir() {
-			totalDirs++
-		}
-
-		files[path] = record
-
-		// Progress indicator
-		if (totalFiles+totalDirs)%10000 == 0 {
-			fmt.Printf("Processed %d files and directories...\n", totalFiles+totalDirs)
-		}
-
+func parseIgnorePatterns(ignore string) []string {
+	if ignore == "" {
 		return nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to scan filesystem: %v", err)
 	}
-
-	duration := time.Since(startTime)
-	systemInfo.TotalFiles = totalFiles
-	systemInfo.TotalDirs = totalDirs
-	systemInfo.ScanDuration = duration
-
-	fmt.Printf("Scan complete: %d files, %d directories in %v\n",
-		totalFiles, totalDirs, duration)
-
-	return &Snapshot{
-		SystemInfo: systemInfo,
-		Files:      files,
-	}, nil
-}
-
-// saveSnapshot saves a snapshot to disk using gob encoding
-func saveSnapshot(snapshot *Snapshot, filename string) error {
-	fmt.Printf("Saving snapshot to %s...\n", filename)
-
-	file, err := os.Create(filename)
-	if err != nil {
-		return fmt.Errorf("failed to create snapshot file: %v", err)
-	}
-	defer file.Close()
-
-	encoder := gob.NewEncoder(file)
-	if err := encoder.Encode(snapshot); err != nil {
-		return fmt.Errorf("failed to encode snapshot: %v", err)
-	}
-
-	// Get file size for info
-	stat, _ := file.Stat()
-	fmt.Printf("Snapshot saved (%d bytes)\n", stat.Size())
-
-	return nil
-}
-
-// loadSnapshot loads a snapshot from disk
-func loadSnapshot(filename string) (*Snapshot, error) {
-	fmt.Printf("Loading snapshot from %s...\n", filename)
-
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open snapshot file: %v", err)
-	}
-	defer file.Close()
-
-	decoder := gob.NewDecoder(file)
-	var snapshot Snapshot
-	if err := decoder.Decode(&snapshot); err != nil {
-		return nil, fmt.Errorf("failed to decode snapshot: %v", err)
-	}
-
-	fmt.Printf("Snapshot loaded: %s (%s) - %d files, %d dirs\n",
-		snapshot.SystemInfo.Hostname,
-		snapshot.SystemInfo.Timestamp.Format("2006-01-02 15:04:05"),
-		snapshot.SystemInfo.TotalFiles,
-		snapshot.SystemInfo.TotalDirs)
-
-	return &snapshot, nil
-}
-
-// compareSnapshots compares two snapshots and returns differences
-func compareSnapshots(baseline, current *Snapshot) *DiffResult {
-	fmt.Println("Comparing snapshots...")
-
-	result := &DiffResult{
-		BaselineInfo: baseline.SystemInfo,
-		CurrentInfo:  current.SystemInfo,
-		Added:        make(map[string]*FileRecord),
-		Modified:     make(map[string]*FileRecord),
-		Deleted:      make(map[string]*FileRecord),
-	}
-
-	// Find added and modified files
-	for path, currentFile := range current.Files {
-		baselineFile, exists := baseline.Files[path]
-
-		if !exists {
-			// File was added
-			result.Added[path] = currentFile
-		} else if !filesEqual(baselineFile, currentFile) {
-			// File was modified
-			result.Modified[path] = currentFile
+	patterns := strings.Split(ignore, ",")
+	result := make([]string, 0, len(patterns))
+	for _, pattern := range patterns {
+		pattern = strings.TrimSpace(pattern)
+		if pattern != "" {
+			result = append(result, pattern)
 		}
 	}
-
-	// Find deleted files
-	for path, baselineFile := range baseline.Files {
-		if _, exists := current.Files[path]; !exists {
-			result.Deleted[path] = baselineFile
-		}
-	}
-
-	// Calculate summary
-	result.Summary = DiffSummary{
-		AddedCount:    len(result.Added),
-		ModifiedCount: len(result.Modified),
-		DeletedCount:  len(result.Deleted),
-		TotalChanges:  len(result.Added) + len(result.Modified) + len(result.Deleted),
-	}
-
-	fmt.Printf("Comparison complete: %d changes (%d added, %d modified, %d deleted)\n",
-		result.Summary.TotalChanges,
-		result.Summary.AddedCount,
-		result.Summary.ModifiedCount,
-		result.Summary.DeletedCount)
-
 	return result
 }
 
-// filesEqual compares two file records for equality
-func filesEqual(a, b *FileRecord) bool {
-	if a.IsDir && b.IsDir {
-		// For directories, compare metadata only
-		return a.Mode == b.Mode && a.ModTime.Equal(b.ModTime)
-	}
-
-	if a.IsDir != b.IsDir {
-		return false
-	}
-
-	// For files, compare hash, size, and mode
-	return a.Hash == b.Hash && a.Size == b.Size && a.Mode == b.Mode
-}
-
-// printDiffSummary prints a human-readable summary of the diff
-func printDiffSummary(diff *DiffResult) {
+func printDiffSummary(result *diff.Result) {
 	fmt.Println("\n" + strings.Repeat("=", 60))
-	fmt.Println("FILESYSTEM DIFF REPORT")
+	fmt.Println("📊 FILESYSTEM DIFF SUMMARY")
 	fmt.Println(strings.Repeat("=", 60))
 
-	fmt.Printf("Baseline: %s (%s) on %s\n",
-		diff.BaselineInfo.Hostname,
-		diff.BaselineInfo.Distro,
-		diff.BaselineInfo.Timestamp.Format("2006-01-02 15:04:05"))
+	fmt.Printf("Baseline: %s (%s) - %s\n",
+		result.Baseline.SystemInfo.Hostname,
+		result.Baseline.SystemInfo.Distro,
+		result.Baseline.SystemInfo.Timestamp.Format("2006-01-02 15:04:05"))
 
-	fmt.Printf("Current:  %s (%s) on %s\n\n",
-		diff.CurrentInfo.Hostname,
-		diff.CurrentInfo.Distro,
-		diff.CurrentInfo.Timestamp.Format("2006-01-02 15:04:05"))
+	fmt.Printf("Current:  %s (%s) - %s\n\n",
+		result.Current.SystemInfo.Hostname,
+		result.Current.SystemInfo.Distro,
+		result.Current.SystemInfo.Timestamp.Format("2006-01-02 15:04:05"))
 
-	fmt.Printf("SUMMARY:\n")
-	fmt.Printf("  Added:    %d files/directories\n", diff.Summary.AddedCount)
-	fmt.Printf("  Modified: %d files/directories\n", diff.Summary.ModifiedCount)
-	fmt.Printf("  Deleted:  %d files/directories\n", diff.Summary.DeletedCount)
-	fmt.Printf("  Total:    %d changes\n\n", diff.Summary.TotalChanges)
+	summary := result.Summary
+	fmt.Printf("📈 CHANGES:\n")
+	fmt.Printf("   Added:    %d files/directories\n", summary.AddedCount)
+	fmt.Printf("   Modified: %d files/directories\n", summary.ModifiedCount)
+	fmt.Printf("   Deleted:  %d files/directories\n", summary.DeletedCount)
+	fmt.Printf("   Total:    %d changes\n\n", summary.TotalChanges)
 
-	if diff.Summary.TotalChanges == 0 {
+	if summary.TotalChanges == 0 {
 		fmt.Println("✅ No changes detected!")
 		return
 	}
 
-	// Show some examples of changes
-	if len(diff.Added) > 0 {
-		fmt.Printf("ADDED FILES (showing first 10):\n")
-		count := 0
-		for path := range diff.Added {
-			if count >= 100 {
-				fmt.Printf("  ... and %d more\n", len(diff.Added)-10)
-				break
-			}
-			fmt.Printf("  + %s\n", path)
-			count++
+	// Show critical changes (common attack indicators)
+	criticalChanges := findCriticalChanges(result)
+	if len(criticalChanges) > 0 {
+		fmt.Printf("🚨 CRITICAL CHANGES:\n")
+		for _, change := range criticalChanges {
+			fmt.Printf("   %s %s\n", change.Type, change.Path)
 		}
 		fmt.Println()
 	}
 
-	if len(diff.Modified) > 0 {
-		fmt.Printf("MODIFIED FILES (showing first 10):\n")
-		count := 0
-		for path := range diff.Modified {
-			if count >= 1000 {
-				fmt.Printf("  ... and %d more\n", len(diff.Modified)-10)
-				break
-			}
-			fmt.Printf("  ~ %s\n", path)
-			count++
-		}
-		fmt.Println()
+	// Show sample of changes
+	showSampleChanges("Added", castToAnyMap(result.Added), 5)
+	showSampleChanges("Modified", castToAnyMap(result.Modified), 5)
+	showSampleChanges("Deleted", castToAnyMap(result.Deleted), 5)
+}
+
+type CriticalChange struct {
+	Type string
+	Path string
+}
+
+func findCriticalChanges(result *diff.Result) []CriticalChange {
+	var critical []CriticalChange
+
+	criticalPaths := []string{
+		"/etc/passwd", "/etc/shadow", "/etc/sudoers",
+		"/bin/", "/sbin/", "/usr/bin/", "/usr/sbin/",
+		"/boot/", "/etc/systemd/", "/etc/cron",
+		"/.ssh/", "/root/", "/home/",
 	}
 
-	if len(diff.Deleted) > 0 {
-		fmt.Printf("DELETED FILES (showing first 10):\n")
-		count := 0
-		for path := range diff.Deleted {
-			if count >= 100 {
-				fmt.Printf("  ... and %d more\n", len(diff.Deleted)-10)
+	checkCritical := func(path, changeType string) {
+		for _, critPath := range criticalPaths {
+			if strings.Contains(path, critPath) {
+				critical = append(critical, CriticalChange{
+					Type: changeType,
+					Path: path,
+				})
 				break
 			}
-			fmt.Printf("  - %s\n", path)
-			count++
 		}
-		fmt.Println()
+	}
+
+	for path := range result.Added {
+		checkCritical(path, "ADDED")
+	}
+	for path := range result.Modified {
+		checkCritical(path, "MODIFIED")
+	}
+	for path := range result.Deleted {
+		checkCritical(path, "DELETED")
+	}
+
+	return critical
+}
+func showSampleChanges(changeType string, changes map[string]any, limit int) {
+	if len(changes) == 0 {
+		return
+	}
+
+	fmt.Printf("📁 %s (%d total):\n", changeType, len(changes))
+	count := 0
+	for path := range changes {
+		if count >= limit {
+			fmt.Printf("   ... and %d more\n", len(changes)-limit)
+			break
+		}
+		icon := getChangeIcon(changeType)
+		fmt.Printf("   %s %s\n", icon, path)
+		count++
+	}
+	fmt.Println()
+}
+func castToAnyMap[T any](m map[string]T) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func getChangeIcon(changeType string) string {
+	switch changeType {
+	case "Added":
+		return "+"
+	case "Modified":
+		return "~"
+	case "Deleted":
+		return "-"
+	default:
+		return "?"
 	}
 }
 
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Filesystem Diff Tool v1.0")
-		fmt.Println("Usage:")
-		fmt.Println("  Create snapshot:    ./fsdiff snapshot <root_path> <output_file>")
-		fmt.Println("  Compare snapshots:  ./fsdiff compare <baseline_file> <current_file>")
-		fmt.Println("  Live comparison:    ./fsdiff live <baseline_file> <root_path>")
-		fmt.Println("\nExamples:")
-		fmt.Println("  ./fsdiff snapshot / baseline.snap")
-		fmt.Println("  ./fsdiff compare baseline.snap current.snap")
-		fmt.Println("  ./fsdiff live baseline.snap /")
-		os.Exit(1)
+func formatBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
 	}
-
-	command := os.Args[1]
-
-	switch command {
-	case "snapshot":
-		if len(os.Args) != 4 {
-			fmt.Println("Usage: ./fsdiff snapshot <root_path> <output_file>")
-			os.Exit(1)
-		}
-
-		rootPath := os.Args[2]
-		outputFile := os.Args[3]
-
-		snapshot, err := createSnapshot(rootPath)
-		if err != nil {
-			fmt.Printf("Error creating snapshot: %v\n", err)
-			os.Exit(1)
-		}
-
-		if err := saveSnapshot(snapshot, outputFile); err != nil {
-			fmt.Printf("Error saving snapshot: %v\n", err)
-			os.Exit(1)
-		}
-
-		fmt.Printf("✅ Snapshot created successfully: %s\n", outputFile)
-
-	case "compare":
-		if len(os.Args) != 4 {
-			fmt.Println("Usage: ./fsdiff compare <baseline_file> <current_file>")
-			os.Exit(1)
-		}
-
-		baselineFile := os.Args[2]
-		currentFile := os.Args[3]
-
-		baseline, err := loadSnapshot(baselineFile)
-		if err != nil {
-			fmt.Printf("Error loading baseline snapshot: %v\n", err)
-			os.Exit(1)
-		}
-
-		current, err := loadSnapshot(currentFile)
-		if err != nil {
-			fmt.Printf("Error loading current snapshot: %v\n", err)
-			os.Exit(1)
-		}
-
-		diff := compareSnapshots(baseline, current)
-		printDiffSummary(diff)
-
-	case "live":
-		if len(os.Args) != 4 {
-			fmt.Println("Usage: ./fsdiff live <baseline_file> <root_path>")
-			os.Exit(1)
-		}
-
-		baselineFile := os.Args[2]
-		rootPath := os.Args[3]
-
-		baseline, err := loadSnapshot(baselineFile)
-		if err != nil {
-			fmt.Printf("Error loading baseline snapshot: %v\n", err)
-			os.Exit(1)
-		}
-
-		fmt.Println("Creating current snapshot for comparison...")
-		current, err := createSnapshot(rootPath)
-		if err != nil {
-			fmt.Printf("Error creating current snapshot: %v\n", err)
-			os.Exit(1)
-		}
-
-		diff := compareSnapshots(baseline, current)
-		printDiffSummary(diff)
-
-	default:
-		fmt.Printf("Unknown command: %s\n", command)
-		fmt.Println("Use 'snapshot', 'compare', or 'live'")
-		os.Exit(1)
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
 	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
