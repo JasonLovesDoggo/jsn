@@ -1,0 +1,427 @@
+package diff
+
+import (
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
+)
+
+// CriticalChange represents a security-relevant change
+type CriticalChange struct {
+	Path     string               `json:"path"`
+	Type     ChangeType           `json:"type"`
+	Record   *snapshot.FileRecord `json:"record"`
+	Severity int                  `json:"severity"` // 1-10 scale
+	Reason   string               `json:"reason"`
+	Category string               `json:"category"`
+}
+
+// CriticalityRule defines how to detect and score critical changes
+type CriticalityRule struct {
+	Name        string
+	Category    string
+	Description string
+	Matcher     func(path string) bool
+	Severity    map[ChangeType]int
+}
+
+// GetCriticalityRules returns all hardcoded criticality rules
+// Edit this function to add/modify/remove rules
+func GetCriticalityRules() []CriticalityRule {
+	return []CriticalityRule{
+		// === AUTHENTICATION & AUTHORIZATION ===
+		{
+			Name:        "user-accounts",
+			Category:    "authentication",
+			Description: "User account database modified",
+			Matcher:     pathExactMatch("/etc/passwd"),
+			Severity:    map[ChangeType]int{ChangeAdded: 10, ChangeModified: 10, ChangeDeleted: 9},
+		},
+		{
+			Name:        "password-hashes",
+			Category:    "authentication",
+			Description: "Password hash database modified",
+			Matcher:     pathExactMatch("/etc/shadow"),
+			Severity:    map[ChangeType]int{ChangeAdded: 10, ChangeModified: 10, ChangeDeleted: 9},
+		},
+		{
+			Name:        "sudo-config",
+			Category:    "authorization",
+			Description: "Sudo privileges configuration modified",
+			Matcher:     pathExactMatch("/etc/sudoers"),
+			Severity:    map[ChangeType]int{ChangeAdded: 10, ChangeModified: 10, ChangeDeleted: 9},
+		},
+		{
+			Name:        "group-membership",
+			Category:    "authentication",
+			Description: "Group membership database modified",
+			Matcher:     pathExactMatch("/etc/group"),
+			Severity:    map[ChangeType]int{ChangeAdded: 8, ChangeModified: 8, ChangeDeleted: 7},
+		},
+
+		// === SYSTEM BINARIES ===
+		{
+			Name:        "system-binaries",
+			Category:    "system-integrity",
+			Description: "Critical system binary modified",
+			Matcher:     pathPrefixAny("/bin/", "/sbin/", "/usr/bin/", "/usr/sbin/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 8, ChangeModified: 9, ChangeDeleted: 7},
+		},
+		{
+			Name:        "boot-binaries",
+			Category:    "boot-security",
+			Description: "Boot-related binary modified",
+			Matcher:     pathPrefixMatch("/boot/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 9, ChangeModified: 9, ChangeDeleted: 8},
+		},
+
+		// === SSH & REMOTE ACCESS ===
+		{
+			Name:        "ssh-keys",
+			Category:    "remote-access",
+			Description: "SSH keys or configuration modified",
+			Matcher:     pathContainsAny("/.ssh/", "/etc/ssh/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 8, ChangeModified: 8, ChangeDeleted: 7},
+		},
+		{
+			Name:        "ssh-host-keys",
+			Category:    "remote-access",
+			Description: "SSH host keys modified",
+			Matcher:     pathMatchesAny("/etc/ssh/ssh_host_*"),
+			Severity:    map[ChangeType]int{ChangeAdded: 9, ChangeModified: 9, ChangeDeleted: 8},
+		},
+
+		// === SYSTEM SERVICES ===
+		{
+			Name:        "systemd-services",
+			Category:    "service-management",
+			Description: "Systemd service configuration modified",
+			Matcher:     pathPrefixAny("/etc/systemd/", "/lib/systemd/", "/usr/lib/systemd/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 6, ChangeModified: 7, ChangeDeleted: 5},
+		},
+		{
+			Name:        "init-scripts",
+			Category:    "service-management",
+			Description: "System initialization script modified",
+			Matcher:     pathPrefixMatch("/etc/init.d/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 7, ChangeModified: 7, ChangeDeleted: 6},
+		},
+
+		// === SCHEDULED TASKS ===
+		{
+			Name:        "cron-system",
+			Category:    "scheduled-tasks",
+			Description: "System cron configuration modified",
+			Matcher:     pathPrefixAny("/etc/cron", "/var/spool/cron/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 7, ChangeModified: 7, ChangeDeleted: 6},
+		},
+		{
+			Name:        "crontab-files",
+			Category:    "scheduled-tasks",
+			Description: "Crontab file modified",
+			Matcher:     pathSuffixMatch("crontab"),
+			Severity:    map[ChangeType]int{ChangeAdded: 8, ChangeModified: 8, ChangeDeleted: 7},
+		},
+
+		// === PRIVILEGED ACCESS ===
+		{
+			Name:        "root-directory",
+			Category:    "privileged-access",
+			Description: "Root user directory modified",
+			Matcher:     pathPrefixMatch("/root/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 8, ChangeModified: 8, ChangeDeleted: 7},
+		},
+		{
+			Name:        "root-profile",
+			Category:    "privileged-access",
+			Description: "Root user profile modified",
+			Matcher:     pathExactAny("/root/.bashrc", "/root/.profile", "/root/.bash_profile"),
+			Severity:    map[ChangeType]int{ChangeAdded: 9, ChangeModified: 9, ChangeDeleted: 8},
+		},
+
+		// === SECURITY CONFIGURATION ===
+		{
+			Name:        "pam-config",
+			Category:    "access-control",
+			Description: "PAM authentication configuration modified",
+			Matcher:     pathPrefixMatch("/etc/pam.d/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 7, ChangeModified: 8, ChangeDeleted: 6},
+		},
+		{
+			Name:        "security-limits",
+			Category:    "access-control",
+			Description: "Security limits configuration modified",
+			Matcher:     pathPrefixMatch("/etc/security/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 6, ChangeModified: 7, ChangeDeleted: 5},
+		},
+
+		// === NETWORK CONFIGURATION ===
+		{
+			Name:        "hosts-file",
+			Category:    "network-security",
+			Description: "System hosts file modified",
+			Matcher:     pathExactMatch("/etc/hosts"),
+			Severity:    map[ChangeType]int{ChangeAdded: 6, ChangeModified: 6, ChangeDeleted: 5},
+		},
+		{
+			Name:        "dns-config",
+			Category:    "network-security",
+			Description: "DNS configuration modified",
+			Matcher:     pathExactMatch("/etc/resolv.conf"),
+			Severity:    map[ChangeType]int{ChangeAdded: 5, ChangeModified: 6, ChangeDeleted: 5},
+		},
+		{
+			Name:        "network-interfaces",
+			Category:    "network-security",
+			Description: "Network interface configuration modified",
+			Matcher:     pathPrefixMatch("/etc/network/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 5, ChangeModified: 6, ChangeDeleted: 5},
+		},
+
+		// === PACKAGE MANAGEMENT ===
+		{
+			Name:        "apt-config",
+			Category:    "package-security",
+			Description: "APT package manager configuration modified",
+			Matcher:     pathPrefixMatch("/etc/apt/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 4, ChangeModified: 5, ChangeDeleted: 4},
+		},
+		{
+			Name:        "yum-config",
+			Category:    "package-security",
+			Description: "YUM package manager configuration modified",
+			Matcher:     pathPrefixAny("/etc/yum/", "/etc/yum.conf"),
+			Severity:    map[ChangeType]int{ChangeAdded: 4, ChangeModified: 5, ChangeDeleted: 4},
+		},
+
+		// === KERNEL & MODULES ===
+		{
+			Name:        "kernel-modules",
+			Category:    "kernel-security",
+			Description: "Kernel module configuration modified",
+			Matcher:     pathPrefixAny("/etc/modules", "/etc/modprobe"),
+			Severity:    map[ChangeType]int{ChangeAdded: 7, ChangeModified: 8, ChangeDeleted: 6},
+		},
+		{
+			Name:        "sysctl-config",
+			Category:    "kernel-security",
+			Description: "Kernel parameter configuration modified",
+			Matcher:     pathContainsMatch("sysctl"),
+			Severity:    map[ChangeType]int{ChangeAdded: 6, ChangeModified: 7, ChangeDeleted: 5},
+		},
+
+		// === APPLICATION SPECIFIC ===
+		{
+			Name:        "web-server-config",
+			Category:    "application-security",
+			Description: "Web server configuration modified",
+			Matcher:     pathPrefixAny("/etc/apache2/", "/etc/nginx/", "/etc/httpd/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 5, ChangeModified: 6, ChangeDeleted: 4},
+		},
+		{
+			Name:        "database-config",
+			Category:    "application-security",
+			Description: "Database configuration modified",
+			Matcher:     pathPrefixAny("/etc/mysql/", "/etc/postgresql/", "/var/lib/mysql/", "/var/lib/postgresql/"),
+			Severity:    map[ChangeType]int{ChangeAdded: 6, ChangeModified: 7, ChangeDeleted: 5},
+		},
+	}
+}
+
+// === MATCHER HELPER FUNCTIONS ===
+// These make the rules above more readable and maintainable
+
+func pathExactMatch(target string) func(string) bool {
+	return func(path string) bool {
+		return path == target
+	}
+}
+
+func pathExactAny(targets ...string) func(string) bool {
+	return func(path string) bool {
+		for _, target := range targets {
+			if path == target {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func pathPrefixMatch(prefix string) func(string) bool {
+	return func(path string) bool {
+		return strings.HasPrefix(path, prefix)
+	}
+}
+
+func pathPrefixAny(prefixes ...string) func(string) bool {
+	return func(path string) bool {
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(path, prefix) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func pathSuffixMatch(suffix string) func(string) bool {
+	return func(path string) bool {
+		return strings.HasSuffix(path, suffix)
+	}
+}
+
+func pathContainsMatch(substring string) func(string) bool {
+	return func(path string) bool {
+		return strings.Contains(path, substring)
+	}
+}
+
+func pathContainsAny(substrings ...string) func(string) bool {
+	return func(path string) bool {
+		for _, substring := range substrings {
+			if strings.Contains(path, substring) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func pathMatchesAny(patterns ...string) func(string) bool {
+	return func(path string) bool {
+		for _, pattern := range patterns {
+			if matched, _ := filepath.Match(pattern, path); matched {
+				return true
+			}
+			if matched, _ := filepath.Match(pattern, filepath.Base(path)); matched {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// === MAIN ANALYSIS FUNCTION ===
+
+// GetCriticalChanges analyzes a diff result for critical changes
+func (r *Result) GetCriticalChanges() []CriticalChange {
+	var critical []CriticalChange
+	rules := GetCriticalityRules()
+
+	// Check added files
+	for path, record := range r.Added {
+		for _, rule := range rules {
+			if rule.Matcher(path) {
+				if severity, exists := rule.Severity[ChangeAdded]; exists {
+					critical = append(critical, CriticalChange{
+						Path:     path,
+						Type:     ChangeAdded,
+						Record:   record,
+						Severity: severity,
+						Reason:   rule.Description,
+						Category: rule.Category,
+					})
+				}
+				break // Only match first rule for each file
+			}
+		}
+	}
+
+	// Check modified files
+	for path, change := range r.Modified {
+		for _, rule := range rules {
+			if rule.Matcher(path) {
+				if severity, exists := rule.Severity[ChangeModified]; exists {
+					critical = append(critical, CriticalChange{
+						Path:     path,
+						Type:     ChangeModified,
+						Record:   change.NewRecord,
+						Severity: severity,
+						Reason:   rule.Description,
+						Category: rule.Category,
+					})
+				}
+				break // Only match first rule for each file
+			}
+		}
+	}
+
+	// Check deleted files
+	for path, record := range r.Deleted {
+		for _, rule := range rules {
+			if rule.Matcher(path) {
+				if severity, exists := rule.Severity[ChangeDeleted]; exists {
+					critical = append(critical, CriticalChange{
+						Path:     path,
+						Type:     ChangeDeleted,
+						Record:   record,
+						Severity: severity,
+						Reason:   rule.Description,
+						Category: rule.Category,
+					})
+				}
+				break // Only match first rule for each file
+			}
+		}
+	}
+
+	// Sort by severity (highest first)
+	sort.Slice(critical, func(i, j int) bool {
+		return critical[i].Severity > critical[j].Severity
+	})
+
+	return critical
+}
+
+// GetCriticalChangesByCategory returns critical changes filtered by category
+func (r *Result) GetCriticalChangesByCategory(category string) []CriticalChange {
+	allCritical := r.GetCriticalChanges()
+	var filtered []CriticalChange
+
+	for _, change := range allCritical {
+		if change.Category == category {
+			filtered = append(filtered, change)
+		}
+	}
+
+	return filtered
+}
+
+// GetCriticalChangesBySeverity returns critical changes above a minimum severity
+func (r *Result) GetCriticalChangesBySeverity(minSeverity int) []CriticalChange {
+	allCritical := r.GetCriticalChanges()
+	var filtered []CriticalChange
+
+	for _, change := range allCritical {
+		if change.Severity >= minSeverity {
+			filtered = append(filtered, change)
+		}
+	}
+
+	return filtered
+}
+
+// GetSecurityCriticalChanges returns only security-related critical changes
+func (r *Result) GetSecurityCriticalChanges() []CriticalChange {
+	securityCategories := []string{
+		"authentication", "authorization", "remote-access",
+		"privileged-access", "access-control", "network-security",
+	}
+
+	allCritical := r.GetCriticalChanges()
+	var filtered []CriticalChange
+
+	for _, change := range allCritical {
+		for _, category := range securityCategories {
+			if change.Category == category {
+				filtered = append(filtered, change)
+				break
+			}
+		}
+	}
+
+	return filtered
+}
