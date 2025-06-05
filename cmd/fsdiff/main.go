@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/fsdiff"
 	"runtime"
 	"strings"
 
@@ -18,21 +19,24 @@ import (
 )
 
 var (
-	version = "2.0.0"
 	workers = flag.Int("workers", runtime.NumCPU()*2, "Number of worker goroutines")
-	verbose = flag.Bool("v", false, "Verbose output")
+	verbose = flag.Bool("v", true, "Verbose output")
+	debug   = flag.Bool("d", false, "Enable pprof profiling on port 6060")
 	ignore  = flag.String("ignore", "", "Comma-separated list of paths/patterns to ignore (e.g., '.cache,node_modules,*.log')")
 )
 
 func main() {
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil)) // Starts pprof server
-	}()
 	flag.Parse()
 
 	if len(flag.Args()) < 1 {
 		printUsage()
 		os.Exit(1)
+	}
+
+	if *debug {
+		go func() {
+			log.Println(http.ListenAndServe("localhost:6060", nil)) // Starts pprof server
+		}()
 	}
 
 	command := flag.Args()[0]
@@ -45,7 +49,7 @@ func main() {
 	case "live":
 		handleLive()
 	case "version":
-		fmt.Printf("fsdiff version %s\n", version)
+		fmt.Printf("fsdiff version %s\n", fsdiff.Version)
 	default:
 		fmt.Printf("Unknown command: %s\n", command)
 		printUsage()
@@ -54,7 +58,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Printf("Filesystem Diff Tool v%s\n\n", version)
+	fmt.Printf("Filesystem Diff Tool v%s\n\n", fsdiff.Version)
 	fmt.Println("USAGE:")
 	fmt.Println("  fsdiff [options] <command> [args...]")
 	fmt.Println("")
@@ -67,6 +71,7 @@ func printUsage() {
 	fmt.Println("OPTIONS:")
 	fmt.Printf("  -workers int    Number of parallel workers (default: %d)\n", runtime.NumCPU()*2)
 	fmt.Println("  -v              Verbose output")
+	fmt.Println("  -d              Enable pprof profiling on port 6060")
 	fmt.Println("  -ignore string  Comma-separated ignore patterns (e.g., '.cache,*.tmp')")
 	fmt.Println("")
 	fmt.Println("EXAMPLES:")
