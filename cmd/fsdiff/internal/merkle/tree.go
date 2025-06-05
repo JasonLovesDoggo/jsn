@@ -13,11 +13,11 @@ import (
 
 // SerializableNode represents a serializable node without circular references
 type SerializableNode struct {
+	Path     string   `json:"path"`
+	FileHash string   `json:"file_hash,omitempty"`
+	Children []string `json:"children"` // Store child paths instead of pointers
 	Hash     uint64   `json:"hash"`
 	IsLeaf   bool     `json:"is_leaf"`
-	Path     string   `json:"path"`
-	Children []string `json:"children"` // Store child paths instead of pointers
-	FileHash string   `json:"file_hash,omitempty"`
 }
 
 // Tree represents a Merkle tree for filesystem integrity
@@ -32,12 +32,12 @@ type Tree struct {
 
 // Node represents a runtime node (not serialized)
 type Node struct {
-	Hash     uint64
-	IsLeaf   bool
-	Path     string
-	Children []*Node
 	Parent   *Node
 	FileInfo *snapshot.FileRecord
+	Path     string
+	Children []*Node
+	Hash     uint64
+	IsLeaf   bool
 }
 
 // PathNode represents a path component in the tree
@@ -268,9 +268,9 @@ func (t *Tree) GetProof(path string) (*MerkleProof, error) {
 
 // TreeComparison represents the result of comparing two Merkle trees
 type TreeComparison struct {
+	Differences []PathDifference
 	LeftRoot    uint64
 	RightRoot   uint64
-	Differences []PathDifference
 }
 
 // PathDifference represents a difference between two trees
@@ -307,16 +307,16 @@ func (d DiffType) String() string {
 // MerkleProof represents a proof of inclusion in the Merkle tree
 type MerkleProof struct {
 	Path     string
+	Proof    []ProofElement
 	LeafHash uint64
 	RootHash uint64
-	Proof    []ProofElement
 }
 
 // ProofElement represents one element in a Merkle proof
 type ProofElement struct {
+	NodePath string
 	Hash     uint64
 	IsLeft   bool
-	NodePath string
 }
 
 // Verify verifies the Merkle proof

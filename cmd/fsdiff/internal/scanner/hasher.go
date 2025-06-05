@@ -12,8 +12,8 @@ import (
 
 const EmptyHash = "ef46db3751d8e999" // generated using xxh64sum with nothing as an input
 type Hasher struct {
-	workers    int
 	bufferPool *sync.Pool
+	workers    int
 }
 
 func newHasher(workers, bufferSize int) *Hasher {

@@ -6,21 +6,21 @@ import (
 
 // CriticalChange represents a security-relevant change
 type CriticalChange struct {
+	Record   *snapshot.FileRecord `json:"record"`
 	Path     string               `json:"path"`
 	Type     ChangeType           `json:"type"`
-	Record   *snapshot.FileRecord `json:"record"`
-	Severity int                  `json:"severity"` // 1-10 scale
 	Reason   string               `json:"reason"`
 	Category string               `json:"category"`
+	Severity int                  `json:"severity"` // 1-10 scale
 }
 
 // CriticalityRule defines how to detect and score critical changes
 type CriticalityRule struct {
+	Matcher     func(path string) bool
+	Severity    map[ChangeType]int
 	Name        string
 	Category    string
 	Description string
-	Matcher     func(path string) bool
-	Severity    map[ChangeType]int
 }
 
 // GetCriticalityRules returns all hardcoded criticality rules

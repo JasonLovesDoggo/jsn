@@ -13,13 +13,13 @@ import (
 type Walker struct {
 	dirQueue chan string
 	fileJobs chan FileJob
-	workers  int
 	results  chan<- *FileResult
+	workers  int
 }
 
 type FileJob struct {
-	Path string
 	Info os.FileInfo
+	Path string
 }
 
 type FileResult struct {

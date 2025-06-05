@@ -17,16 +17,16 @@ type FileInfo struct {
 
 // SystemInfo contains metadata about the system when snapshot was taken
 type SystemInfo struct {
+	Timestamp    time.Time     `json:"timestamp"`
 	Hostname     string        `json:"hostname"`
 	OS           string        `json:"os"`
 	Arch         string        `json:"arch"`
 	Distro       string        `json:"distro"`
 	KernelVer    string        `json:"kernel_version"`
-	Timestamp    time.Time     `json:"timestamp"`
 	ScanRoot     string        `json:"scan_root"`
+	GoVersion    string        `json:"go_version"`
 	ScanDuration time.Duration `json:"scan_duration"`
 	CPUCount     int           `json:"cpu_count"`
-	GoVersion    string        `json:"go_version"`
 }
 
 func (s *SystemInfo) String() string {

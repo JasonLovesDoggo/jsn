@@ -22,13 +22,13 @@ type Differ struct {
 
 // Result represents the comparison between two snapshots
 type Result struct {
+	Generated time.Time                       `json:"generated"`
 	Baseline  *snapshot.Snapshot              `json:"baseline"`
 	Current   *snapshot.Snapshot              `json:"current"`
 	Added     map[string]*snapshot.FileRecord `json:"added"`
 	Modified  map[string]*ChangeDetail        `json:"modified"`
 	Deleted   map[string]*snapshot.FileRecord `json:"deleted"`
 	Summary   Summary                         `json:"summary"`
-	Generated time.Time                       `json:"generated"`
 }
 
 // ChangeDetail represents details about a modified file

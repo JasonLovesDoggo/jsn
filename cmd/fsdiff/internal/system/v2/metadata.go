@@ -1,11 +1,11 @@
 package v2
 
 type FileInfo struct {
+	Metadata    *FileMetadata `json:"m,omitempty"` // xattrs, selinux
 	Hash        uint64        `json:"h"`           // optional, not set here
-	Permissions uint16        `json:"p"`           // rwx + special bits
 	OwnerID     uint32        `json:"u"`           // UID
 	GroupID     uint32        `json:"g"`           // GID
-	Metadata    *FileMetadata `json:"m,omitempty"` // xattrs, selinux
+	Permissions uint16        `json:"p"`           // rwx + special bits
 }
 
 type FileMetadata struct {

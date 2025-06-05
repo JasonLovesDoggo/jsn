@@ -15,10 +15,10 @@ import (
 )
 
 type Config struct {
-	Workers        int
-	Verbose        bool
 	IgnorePatterns []string
+	Workers        int
 	BufferSize     int
+	Verbose        bool
 }
 
 type Scanner struct {
@@ -30,11 +30,11 @@ type Scanner struct {
 }
 
 type ScanStats struct {
+	StartTime      time.Time
 	FilesProcessed int64
 	DirsProcessed  int64
 	BytesProcessed int64
 	Errors         int64
-	StartTime      time.Time
 }
 
 func New(config *Config) *Scanner {

@@ -15,14 +15,14 @@ import (
 
 // FileRecord represents a single file's metadata and hash
 type FileRecord struct {
+	ModTime time.Time   `json:"mod_time"`
 	Path    string      `json:"path"`
 	Hash    string      `json:"hash"`
 	Size    int64       `json:"size"`
-	Mode    fs.FileMode `json:"mode"`
-	ModTime time.Time   `json:"mod_time"`
-	IsDir   bool        `json:"is_dir"`
 	UID     int         `json:"uid,omitempty"`
 	GID     int         `json:"gid,omitempty"`
+	Mode    fs.FileMode `json:"mode"`
+	IsDir   bool        `json:"is_dir"`
 }
 
 // ScanStats contains statistics about the filesystem scan
@@ -43,22 +43,22 @@ type SimpleMerkleData struct {
 
 // Snapshot represents a complete filesystem snapshot
 type Snapshot struct {
-	SystemInfo system.SystemInfo      `json:"system_info"`
+	Tree       interface{}            `json:"-"` // Don't serialize tree - will be rebuilt
 	Files      map[string]*FileRecord `json:"files"`
-	MerkleRoot uint64                 `json:"merkle_root"`
-	MerkleData SimpleMerkleData       `json:"merkle_data"` // Store essential merkle info
-	Tree       interface{}            `json:"-"`           // Don't serialize tree - will be rebuilt
-	Stats      ScanStats              `json:"stats"`
+	SystemInfo system.SystemInfo      `json:"system_info"`
 	Version    string                 `json:"version"`
+	Stats      ScanStats              `json:"stats"`
+	MerkleData SimpleMerkleData       `json:"merkle_data"` // Store essential merkle info
+	MerkleRoot uint64                 `json:"merkle_root"`
 }
 
 // SnapshotHeader contains metadata for quick snapshot inspection
 type SnapshotHeader struct {
-	Version    string            `json:"version"`
+	Created    time.Time         `json:"created"`
 	SystemInfo system.SystemInfo `json:"system_info"`
+	Version    string            `json:"version"`
 	Stats      ScanStats         `json:"stats"`
 	MerkleRoot uint64            `json:"merkle_root"`
-	Created    time.Time         `json:"created"`
 }
 
 // Save saves a snapshot to disk with compression
