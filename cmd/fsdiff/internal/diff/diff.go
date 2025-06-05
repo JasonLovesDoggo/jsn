@@ -121,7 +121,7 @@ func (d *Differ) compareBruteForce(baseline, current *snapshot.Snapshot, result 
 		} else if inBaseline && !inCurrent {
 			// File was deleted
 			result.Deleted[path] = baselineRecord
-		} else if inBaseline && inCurrent {
+		} else if inBaseline {
 			// File exists in both - check if modified
 			if !d.filesEqual(baselineRecord, currentRecord) {
 				changes := d.detectChanges(baselineRecord, currentRecord)
