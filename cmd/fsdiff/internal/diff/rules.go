@@ -1,10 +1,6 @@
 package diff
 
 import (
-	"path/filepath"
-	"sort"
-	"strings"
-
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
 )
 

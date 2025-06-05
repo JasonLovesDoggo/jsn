@@ -4,8 +4,9 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/cespare/xxhash/v2"
 	"sort"
+
+	"github.com/cespare/xxhash/v2"
 
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
 )

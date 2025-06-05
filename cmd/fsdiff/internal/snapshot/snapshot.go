@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/fsdiff"
 	"time"
+
+	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/fsdiff"
 
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/system"
 )

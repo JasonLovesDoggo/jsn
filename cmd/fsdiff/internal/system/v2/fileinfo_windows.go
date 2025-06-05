@@ -3,9 +3,10 @@
 package system
 
 import (
-	"golang.org/x/sys/windows"
 	"io/fs"
 	"syscall"
+
+	"golang.org/x/sys/windows"
 )
 
 func GetFileInfo(path string, info fs.FileInfo) *FileInfo {

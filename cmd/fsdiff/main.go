@@ -6,9 +6,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/fsdiff"
 	"runtime"
 	"strings"
+
+	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/fsdiff"
 
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/diff"
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/report"
