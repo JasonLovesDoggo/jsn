@@ -1,7 +1,7 @@
 package merkle
 
 import (
-	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"github.com/cespare/xxhash/v2"
@@ -70,7 +70,7 @@ func (t *Tree) BuildTree() uint64 {
 	// instead of building the full tree structure to avoid memory issues
 
 	if t.totalFiles == 0 {
-		return uint64{}
+		return uint64(0)
 	}
 
 	// Create a simple root hash based on total file count
@@ -88,7 +88,7 @@ func (t *Tree) BuildTree() uint64 {
 // BuildTreeFromFiles constructs the tree from a file map (for loaded snapshots)
 func (t *Tree) BuildTreeFromFiles(files map[string]*snapshot.FileRecord) uint64 {
 	if len(files) == 0 {
-		return uint64{}
+		return uint64(0)
 	}
 
 	// Build a simplified path-based tree
@@ -163,7 +163,7 @@ func (t *Tree) convertToSerializable(pathNode *PathNode, fullPath string) {
 		hashData = append(hashData, []byte(file.Path)...)
 	}
 
-	nodeHash := sha256.Sum256(hashData)
+	nodeHash := xxhash.Sum64(hashData)
 
 	// Create serializable node
 	childPaths := make([]string, 0, len(pathNode.Children))
@@ -199,7 +199,7 @@ func (t *Tree) convertToSerializable(pathNode *PathNode, fullPath string) {
 // calculateRootHashFromNodes calculates root hash from all nodes
 func (t *Tree) calculateRootHashFromNodes() uint64 {
 	if len(t.Nodes) == 0 {
-		return uint64{}
+		return 0
 	}
 
 	// Sort node paths for consistent hashing
@@ -210,18 +210,21 @@ func (t *Tree) calculateRootHashFromNodes() uint64 {
 	sort.Strings(paths)
 
 	// Combine all node hashes
-	var hashData []byte
+	hasher := xxhash.New()
+	buf := make([]byte, 8)
+
 	for _, path := range paths {
 		node := t.Nodes[path]
-		hashData = append(hashData, node.Hash[:]...)
+		binary.LittleEndian.PutUint64(buf, node.Hash)
+		hasher.Write(buf)
 	}
 
-	return sha256.Sum256(hashData)
+	return hasher.Sum64()
 }
 
 // VerifyIntegrity verifies the integrity of the tree
 func (t *Tree) VerifyIntegrity() bool {
-	return len(t.Nodes) > 0 && t.RootHash != uint64{}
+	return len(t.Nodes) > 0 && t.RootHash != uint64(0)
 }
 
 // CompareWith compares this tree with another tree
@@ -318,13 +321,13 @@ type ProofElement struct {
 // Verify verifies the Merkle proof
 func (p *MerkleProof) Verify() bool {
 	// Simplified verification for now
-	return p.LeafHash != uint64{} && p.RootHash != uint64{}
+	return p.LeafHash != uint64(0) && p.RootHash != uint64(0)
 }
 
 // PrintTree prints a simplified tree structure
 func (t *Tree) PrintTree() {
 	fmt.Printf("Merkle Tree Summary:\n")
-	fmt.Printf("  Root Hash: %x\n", t.RootHash[:8])
+	fmt.Printf("  Root Hash: %x\n", t.RootHash)
 	fmt.Printf("  Nodes: %d\n", len(t.Nodes))
 	fmt.Printf("  Leaf Count: %d\n", t.LeafCount)
 	fmt.Printf("  Depth: %d\n", t.Depth)
@@ -344,7 +347,7 @@ func (t *Tree) PrintTree() {
 				displayPath = "/"
 			}
 			fmt.Printf("    %s (hash: %x, leaf: %v)\n",
-				displayPath, node.Hash[:8], node.IsLeaf)
+				displayPath, node.Hash, node.IsLeaf)
 		}
 	}
 }
