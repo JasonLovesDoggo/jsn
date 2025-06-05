@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+// FileInfo contains system-specific file information
+type FileInfo struct {
+	UID int `json:"uid"`
+	GID int `json:"gid"`
+}
+
 // SystemInfo contains metadata about the system when snapshot was taken
 type SystemInfo struct {
 	Hostname     string        `json:"hostname"`
@@ -23,10 +29,16 @@ type SystemInfo struct {
 	GoVersion    string        `json:"go_version"`
 }
 
-// FileInfo contains system-specific file information
-type FileInfo struct {
-	UID int `json:"uid"`
-	GID int `json:"gid"`
+func (s *SystemInfo) String() string {
+	return strings.Join([]string{
+		"Hostname: " + s.Hostname,
+		"OS: " + s.OS,
+		"Arch: " + s.Arch,
+		"Distro: " + s.Distro,
+		"Kernel Version: " + s.KernelVer,
+		"Timestamp: " + s.Timestamp.Format(time.RFC3339),
+		"Scan Root: " + s.ScanRoot,
+	}, "\n")
 }
 
 // GetSystemInfo gathers comprehensive system metadata

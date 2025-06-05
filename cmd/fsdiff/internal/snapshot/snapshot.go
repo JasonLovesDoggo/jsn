@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/fsdiff"
 	"time"
 
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/system"
@@ -59,11 +60,9 @@ type SnapshotHeader struct {
 	Created    time.Time         `json:"created"`
 }
 
-const SnapshotVersion = "2.0.0"
-
 // Save saves a snapshot to disk with compression
 func Save(snapshot *Snapshot, filename string) error {
-	snapshot.Version = SnapshotVersion
+	snapshot.Version = fsdiff.SnapshotVersion
 
 	// Extract merkle data before serialization
 	if snapshot.Tree != nil {
@@ -97,7 +96,7 @@ func Save(snapshot *Snapshot, filename string) error {
 	// Set gzip header metadata
 	gzWriter.Name = filename
 	gzWriter.Comment = fmt.Sprintf("fsdiff snapshot v%s - %s",
-		SnapshotVersion, snapshot.SystemInfo.Hostname)
+		fsdiff.Version, snapshot.SystemInfo.String())
 	gzWriter.ModTime = time.Now()
 
 	// Encode the snapshot
