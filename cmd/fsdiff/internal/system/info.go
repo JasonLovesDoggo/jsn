@@ -1,19 +1,11 @@
 package system
 
 import (
-	"io/fs"
 	"os"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 )
-
-// FileInfo contains system-specific file information
-type FileInfo struct {
-	UID int `json:"uid"`
-	GID int `json:"gid"`
-}
 
 // SystemInfo contains metadata about the system when snapshot was taken
 type SystemInfo struct {
@@ -56,20 +48,6 @@ func GetSystemInfo(scanRoot string) SystemInfo {
 		CPUCount:  runtime.NumCPU(),
 		GoVersion: runtime.Version(),
 	}
-}
-
-// GetFileInfo extracts system-specific file information
-func GetFileInfo(info fs.FileInfo) *FileInfo {
-	// Try to get UID/GID on Unix systems
-	if runtime.GOOS != "windows" {
-		if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-			return &FileInfo{
-				UID: int(stat.Uid),
-				GID: int(stat.Gid),
-			}
-		}
-	}
-	return &FileInfo{UID: 0, GID: 0}
 }
 
 // detectDistro attempts to detect the Linux distribution

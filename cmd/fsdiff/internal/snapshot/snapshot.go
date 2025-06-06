@@ -8,21 +8,20 @@ import (
 	"os"
 	"time"
 
-	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/fsdiff"
-
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/system"
+	systemv2 "pkg.jsn.cam/jsn/cmd/fsdiff/internal/system/v2"
+	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/fsdiff"
 )
 
 // FileRecord represents a single file's metadata and hash
 type FileRecord struct {
-	ModTime time.Time   `json:"mod_time"`
-	Path    string      `json:"path"`
-	Hash    string      `json:"hash"`
-	Size    int64       `json:"size"`
-	UID     int         `json:"uid,omitempty"`
-	GID     int         `json:"gid,omitempty"`
-	Mode    fs.FileMode `json:"mode"`
-	IsDir   bool        `json:"is_dir"`
+	ModTime  time.Time          `json:"mod_time"`
+	Path     string             `json:"path"`
+	Hash     string             `json:"hash"`
+	Size     int64              `json:"size"`
+	Mode     fs.FileMode        `json:"mode"`
+	IsDir    bool               `json:"is_dir"`
+	FileInfo *systemv2.FileInfo `json:"file_info,omitempty"` // v2 metadata (permissions, ownership, xattrs, selinux)
 }
 
 // ScanStats contains statistics about the filesystem scan

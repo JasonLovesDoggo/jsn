@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
+	systemv2 "pkg.jsn.cam/jsn/cmd/fsdiff/internal/system/v2"
 )
 
 // New creates a new differ
@@ -145,7 +146,9 @@ func (d *Differ) compareBruteForce(baseline, current *snapshot.Snapshot, result 
 func (d *Differ) filesEqual(a, b *snapshot.FileRecord) bool {
 	if a.IsDir && b.IsDir {
 		// For directories, compare metadata
-		return a.Mode == b.Mode && a.ModTime.Equal(b.ModTime) && a.UID == b.UID && a.GID == b.GID
+		return a.Mode == b.Mode &&
+			a.ModTime.Equal(b.ModTime) &&
+			fileInfoEqual(a.FileInfo, b.FileInfo)
 	}
 
 	if a.IsDir != b.IsDir {
@@ -156,12 +159,59 @@ func (d *Differ) filesEqual(a, b *snapshot.FileRecord) bool {
 	return a.Hash == b.Hash &&
 		a.Size == b.Size &&
 		a.Mode == b.Mode &&
-		a.UID == b.UID &&
-		a.GID == b.GID
+		fileInfoEqual(a.FileInfo, b.FileInfo)
+}
+
+// fileInfoEqual compares v2 FileInfo structures
+func fileInfoEqual(a, b *systemv2.FileInfo) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+
+	// Compare basic permissions and ownership
+	if a.OwnerID != b.OwnerID || a.GroupID != b.GroupID || a.Permissions != b.Permissions {
+		return false
+	}
+
+	// Compare metadata if present
+	if (a.Metadata == nil) != (b.Metadata == nil) {
+		return false
+	}
+
+	if a.Metadata != nil && b.Metadata != nil {
+		// Compare SELinux labels
+		if !mapsEqual(a.Metadata.SELinux, b.Metadata.SELinux) {
+			return false
+		}
+
+		// Compare xattrs
+		if !mapsEqual(a.Metadata.Xattrs, b.Metadata.Xattrs) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// mapsEqual compares two string maps
+func mapsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // detectChanges identifies what specifically changed about a file
-func (d *Differ) detectChanges(old, new *snapshot.FileRecord) []string {
+func (d *Differ) detectChanges(old,
+	new *snapshot.FileRecord) []string {
 	var changes []string
 
 	if old.Hash != new.Hash && old.Hash != "" && new.Hash != "" {
@@ -182,16 +232,101 @@ func (d *Differ) detectChanges(old, new *snapshot.FileRecord) []string {
 			new.ModTime.Format("2006-01-02 15:04:05")))
 	}
 
-	if old.UID != new.UID {
-		changes = append(changes, fmt.Sprintf("uid (%d → %d)", old.UID, new.UID))
-	}
+	// Check v2 FileInfo changes
+	if old.FileInfo != nil && new.FileInfo != nil {
+		if old.FileInfo.OwnerID != new.FileInfo.OwnerID {
+			changes = append(changes, fmt.Sprintf("uid (%d → %d)", old.FileInfo.OwnerID, new.FileInfo.OwnerID))
+		}
 
-	if old.GID != new.GID {
-		changes = append(changes, fmt.Sprintf("gid (%d → %d)", old.GID, new.GID))
+		if old.FileInfo.GroupID != new.FileInfo.GroupID {
+			changes = append(changes, fmt.Sprintf("gid (%d → %d)", old.FileInfo.GroupID, new.FileInfo.GroupID))
+		}
+
+		if old.FileInfo.Permissions != new.FileInfo.Permissions {
+			changes = append(changes, fmt.Sprintf("permissions (%04o → %04o)", old.FileInfo.Permissions, new.FileInfo.Permissions))
+		}
+
+		// Check metadata changes
+		if old.FileInfo.Metadata != nil || new.FileInfo.Metadata != nil {
+			metaChanges := d.detectMetadataChanges(old.FileInfo.Metadata, new.FileInfo.Metadata)
+			changes = append(changes, metaChanges...)
+		}
+	} else if (old.FileInfo == nil) != (new.FileInfo == nil) {
+		changes = append(changes, "metadata")
 	}
 
 	if len(changes) == 0 {
 		changes = append(changes, "unknown")
+	}
+
+	return changes
+}
+
+// detectMetadataChanges compares metadata and returns human-readable change descriptions
+func (d *Differ) detectMetadataChanges(oldMeta, newMeta *systemv2.FileMetadata) []string {
+	var changes []string
+
+	// Handle nil cases
+	if oldMeta == nil && newMeta == nil {
+		return changes
+	}
+	if oldMeta == nil {
+		if newMeta.SELinux != nil {
+			changes = append(changes, "selinux added")
+		}
+		if newMeta.Xattrs != nil {
+			changes = append(changes, fmt.Sprintf("xattrs added (%d)", len(newMeta.Xattrs)))
+		}
+		return changes
+	}
+	if newMeta == nil {
+		if oldMeta.SELinux != nil {
+			changes = append(changes, "selinux removed")
+		}
+		if oldMeta.Xattrs != nil {
+			changes = append(changes, fmt.Sprintf("xattrs removed (%d)", len(oldMeta.Xattrs)))
+		}
+		return changes
+	}
+
+	// Compare SELinux
+	if !mapsEqual(oldMeta.SELinux, newMeta.SELinux) {
+		if oldLabel, ok := oldMeta.SELinux["label"]; ok {
+			if newLabel, ok := newMeta.SELinux["label"]; ok {
+				changes = append(changes, fmt.Sprintf("selinux (%s → %s)", oldLabel, newLabel))
+			} else {
+				changes = append(changes, "selinux removed")
+			}
+		} else if _, ok := newMeta.SELinux["label"]; ok {
+			changes = append(changes, "selinux added")
+		}
+	}
+
+	// Compare xattrs
+	if !mapsEqual(oldMeta.Xattrs, newMeta.Xattrs) {
+		added := 0
+		removed := 0
+		modified := 0
+
+		// Check for removed/modified
+		for k, oldVal := range oldMeta.Xattrs {
+			if newVal, exists := newMeta.Xattrs[k]; !exists {
+				removed++
+			} else if newVal != oldVal {
+				modified++
+			}
+		}
+
+		// Check for added
+		for k := range newMeta.Xattrs {
+			if _, exists := oldMeta.Xattrs[k]; !exists {
+				added++
+			}
+		}
+
+		if added > 0 || removed > 0 || modified > 0 {
+			changes = append(changes, fmt.Sprintf("xattrs (+%d -%d ~%d)", added, removed, modified))
+		}
 	}
 
 	return changes
@@ -381,4 +516,8 @@ func (r *Result) ExportCSV() [][]string {
 	}
 
 	return rows
+}
+
+func maxin() {
+	fmt.Printf("hi")
 }

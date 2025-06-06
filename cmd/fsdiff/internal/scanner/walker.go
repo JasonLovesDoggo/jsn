@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/system"
+	systemv2 "pkg.jsn.cam/jsn/cmd/fsdiff/internal/system/v2"
 )
 
 type Walker struct {
@@ -42,15 +42,12 @@ func (w *Walker) Walk(root string, ignorer *PathIgnorer, hasher *Hasher, results
 	rootInfo, err := os.Stat(root)
 	if err == nil {
 		rootRecord := &snapshot.FileRecord{
-			Path:    root,
-			Size:    0,
-			Mode:    rootInfo.Mode(),
-			ModTime: rootInfo.ModTime(),
-			IsDir:   true,
-		}
-		if stat := system.GetFileInfo(rootInfo); stat != nil {
-			rootRecord.UID = stat.UID
-			rootRecord.GID = stat.GID
+			Path:     root,
+			Size:     0,
+			Mode:     rootInfo.Mode(),
+			ModTime:  rootInfo.ModTime(),
+			IsDir:    true,
+			FileInfo: systemv2.GetFileInfo(root, rootInfo),
 		}
 		results <- &FileResult{Record: rootRecord}
 	}
@@ -123,15 +120,12 @@ func (w *Walker) dirWorker(wg *sync.WaitGroup, ignorer *PathIgnorer, activeDirs 
 				dirInfo, err := entry.Info()
 				if err == nil {
 					dirRecord := &snapshot.FileRecord{
-						Path:    fullPath,
-						Size:    0,
-						Mode:    dirInfo.Mode(),
-						ModTime: dirInfo.ModTime(),
-						IsDir:   true,
-					}
-					if stat := system.GetFileInfo(dirInfo); stat != nil {
-						dirRecord.UID = stat.UID
-						dirRecord.GID = stat.GID
+						Path:     fullPath,
+						Size:     0,
+						Mode:     dirInfo.Mode(),
+						ModTime:  dirInfo.ModTime(),
+						IsDir:    true,
+						FileInfo: systemv2.GetFileInfo(fullPath, dirInfo),
 					}
 					select {
 					case w.results <- &FileResult{Record: dirRecord}:
@@ -183,15 +177,12 @@ func (w *Walker) processDir(path string, ignorer *PathIgnorer) {
 		if entry.IsDir() {
 			// Add directory record
 			dirRecord := &snapshot.FileRecord{
-				Path:    fullPath,
-				Size:    0,
-				Mode:    info.Mode(),
-				ModTime: info.ModTime(),
-				IsDir:   true,
-			}
-			if stat := system.GetFileInfo(info); stat != nil {
-				dirRecord.UID = stat.UID
-				dirRecord.GID = stat.GID
+				Path:     fullPath,
+				Size:     0,
+				Mode:     info.Mode(),
+				ModTime:  info.ModTime(),
+				IsDir:    true,
+				FileInfo: systemv2.GetFileInfo(fullPath, info),
 			}
 			w.results <- &FileResult{Record: dirRecord}
 
@@ -207,17 +198,12 @@ func (w *Walker) fileWorker(wg *sync.WaitGroup, hasher *Hasher, results chan<- *
 
 	for job := range w.fileJobs {
 		record := &snapshot.FileRecord{
-			Path:    job.Path,
-			Size:    job.Info.Size(),
-			Mode:    job.Info.Mode(),
-			ModTime: job.Info.ModTime(),
-			IsDir:   job.Info.IsDir(),
-		}
-
-		// Get system-specific info
-		if stat := system.GetFileInfo(job.Info); stat != nil {
-			record.UID = stat.UID
-			record.GID = stat.GID
+			Path:     job.Path,
+			Size:     job.Info.Size(),
+			Mode:     job.Info.Mode(),
+			ModTime:  job.Info.ModTime(),
+			IsDir:    job.Info.IsDir(),
+			FileInfo: systemv2.GetFileInfo(job.Path, job.Info),
 		}
 
 		// Hash regular files
