@@ -33,7 +33,7 @@ func GetCriticalityRules() []CriticalityRule {
 			Category:    "authentication",
 			Description: "User account database modified",
 			Matcher:     pathExactMatch("/etc/passwd"),
-			Severity:    map[ChangeType]int{ChangeAdded: 10, ChangeModified: 10, ChangeDeleted: 9},
+			Severity:    map[ChangeType]int{ChangeAdded: 10, ChangeModified: 10, ChangeDeleted: 10},
 		},
 		{
 			Name:        "password-hashes",
