@@ -65,3 +65,9 @@ func Parse() {
 		log.Fatalln(err)
 	}
 }
+
+func ParseWithPrefix(prefix string) {
+	if err := ParseSet(prefix, flag.CommandLine); err != nil {
+		log.Fatalln(err)
+	}
+}

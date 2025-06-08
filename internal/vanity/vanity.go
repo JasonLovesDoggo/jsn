@@ -12,9 +12,9 @@ import (
 )
 
 type config struct {
-	importTag []string
 	sourceTag *string
 	redir     Redirector
+	importTag []string
 }
 
 // Configures the Handler. The only required option is WithImport.
