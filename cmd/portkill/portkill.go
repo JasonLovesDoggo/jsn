@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -20,6 +21,8 @@ var (
 func main() {
 	// Configure flagenv and program info
 	flagenv.ParseWithPrefix("PORTKILL_")
+
+	flag.Parse()
 
 	if flag.NArg() == 0 {
 		printUsage()
@@ -87,7 +90,8 @@ func findPIDsByPort(port int) ([]string, error) {
 	output, err := cmd.Output()
 	if err != nil {
 		// lsof returns error if no processes found, which isn't an error for us
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
 			return []string{}, nil
 		}
 		return nil, err
