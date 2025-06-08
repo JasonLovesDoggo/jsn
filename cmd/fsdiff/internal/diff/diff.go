@@ -8,7 +8,64 @@ import (
 	"time"
 
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
-	systemv2 "pkg.jsn.cam/jsn/cmd/fsdiff/internal/system/v2"
+)
+
+// Config holds diff configuration
+type Config struct {
+	IgnorePatterns []string
+	Verbose        bool
+	ShowHashes     bool
+	OnlyChanges    bool
+}
+
+// Differ handles comparing snapshots
+type Differ struct {
+	config  *Config
+	ignorer *PathIgnorer
+}
+
+// Result represents the comparison between two snapshots
+type Result struct {
+	Baseline  *snapshot.Snapshot              `json:"baseline"`
+	Current   *snapshot.Snapshot              `json:"current"`
+	Added     map[string]*snapshot.FileRecord `json:"added"`
+	Modified  map[string]*ChangeDetail        `json:"modified"`
+	Deleted   map[string]*snapshot.FileRecord `json:"deleted"`
+	Summary   Summary                         `json:"summary"`
+	Generated time.Time                       `json:"generated"`
+}
+
+// ChangeDetail represents details about a modified file
+type ChangeDetail struct {
+	OldRecord *snapshot.FileRecord `json:"old_record"`
+	NewRecord *snapshot.FileRecord `json:"new_record"`
+	Changes   []string             `json:"changes"`
+}
+
+// Summary contains summary statistics
+type Summary struct {
+	AddedCount     int           `json:"added_count"`
+	ModifiedCount  int           `json:"modified_count"`
+	DeletedCount   int           `json:"deleted_count"`
+	TotalChanges   int           `json:"total_changes"`
+	AddedSize      int64         `json:"added_size"`
+	DeletedSize    int64         `json:"deleted_size"`
+	SizeDiff       int64         `json:"size_diff"`
+	ComparisonTime time.Duration `json:"comparison_time"`
+}
+
+// PathIgnorer handles ignore pattern matching for diffs
+type PathIgnorer struct {
+	patterns []string
+}
+
+// ChangeType represents the type of change
+type ChangeType string
+
+const (
+	ChangeAdded    ChangeType = "added"
+	ChangeModified ChangeType = "modified"
+	ChangeDeleted  ChangeType = "deleted"
 )
 
 // New creates a new differ
@@ -81,8 +138,8 @@ func (d *Differ) compareMerkleTrees(baseline, current *snapshot.Snapshot, result
 
 	if d.config.Verbose {
 		fmt.Printf("🔍 Merkle roots differ - performing detailed comparison\n")
-		fmt.Printf("   Baseline: %x\n", baseline.MerkleRoot)
-		fmt.Printf("   Current:  %x\n", current.MerkleRoot)
+		fmt.Printf("   Baseline: %x\n", baseline.MerkleRoot[:8])
+		fmt.Printf("   Current:  %x\n", current.MerkleRoot[:8])
 	}
 
 	// Since merkle roots differ, fall back to brute force comparison
@@ -122,7 +179,7 @@ func (d *Differ) compareBruteForce(baseline, current *snapshot.Snapshot, result 
 		} else if inBaseline && !inCurrent {
 			// File was deleted
 			result.Deleted[path] = baselineRecord
-		} else if inBaseline {
+		} else if inBaseline && inCurrent {
 			// File exists in both - check if modified
 			if !d.filesEqual(baselineRecord, currentRecord) {
 				changes := d.detectChanges(baselineRecord, currentRecord)
@@ -146,9 +203,7 @@ func (d *Differ) compareBruteForce(baseline, current *snapshot.Snapshot, result 
 func (d *Differ) filesEqual(a, b *snapshot.FileRecord) bool {
 	if a.IsDir && b.IsDir {
 		// For directories, compare metadata
-		return a.Mode == b.Mode &&
-			a.ModTime.Equal(b.ModTime) &&
-			fileInfoEqual(a.FileInfo, b.FileInfo)
+		return a.Mode == b.Mode && a.ModTime.Equal(b.ModTime) && a.UID == b.UID && a.GID == b.GID
 	}
 
 	if a.IsDir != b.IsDir {
@@ -159,59 +214,12 @@ func (d *Differ) filesEqual(a, b *snapshot.FileRecord) bool {
 	return a.Hash == b.Hash &&
 		a.Size == b.Size &&
 		a.Mode == b.Mode &&
-		fileInfoEqual(a.FileInfo, b.FileInfo)
-}
-
-// fileInfoEqual compares v2 FileInfo structures
-func fileInfoEqual(a, b *systemv2.FileInfo) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-
-	// Compare basic permissions and ownership
-	if a.OwnerID != b.OwnerID || a.GroupID != b.GroupID || a.Permissions != b.Permissions {
-		return false
-	}
-
-	// Compare metadata if present
-	if (a.Metadata == nil) != (b.Metadata == nil) {
-		return false
-	}
-
-	if a.Metadata != nil && b.Metadata != nil {
-		// Compare SELinux labels
-		if !mapsEqual(a.Metadata.SELinux, b.Metadata.SELinux) {
-			return false
-		}
-
-		// Compare xattrs
-		if !mapsEqual(a.Metadata.Xattrs, b.Metadata.Xattrs) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// mapsEqual compares two string maps
-func mapsEqual(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if b[k] != v {
-			return false
-		}
-	}
-	return true
+		a.UID == b.UID &&
+		a.GID == b.GID
 }
 
 // detectChanges identifies what specifically changed about a file
-func (d *Differ) detectChanges(old,
-	new *snapshot.FileRecord) []string {
+func (d *Differ) detectChanges(old, new *snapshot.FileRecord) []string {
 	var changes []string
 
 	if old.Hash != new.Hash && old.Hash != "" && new.Hash != "" {
@@ -232,101 +240,16 @@ func (d *Differ) detectChanges(old,
 			new.ModTime.Format("2006-01-02 15:04:05")))
 	}
 
-	// Check v2 FileInfo changes
-	if old.FileInfo != nil && new.FileInfo != nil {
-		if old.FileInfo.OwnerID != new.FileInfo.OwnerID {
-			changes = append(changes, fmt.Sprintf("uid (%d → %d)", old.FileInfo.OwnerID, new.FileInfo.OwnerID))
-		}
+	if old.UID != new.UID {
+		changes = append(changes, fmt.Sprintf("uid (%d → %d)", old.UID, new.UID))
+	}
 
-		if old.FileInfo.GroupID != new.FileInfo.GroupID {
-			changes = append(changes, fmt.Sprintf("gid (%d → %d)", old.FileInfo.GroupID, new.FileInfo.GroupID))
-		}
-
-		if old.FileInfo.Permissions != new.FileInfo.Permissions {
-			changes = append(changes, fmt.Sprintf("permissions (%04o → %04o)", old.FileInfo.Permissions, new.FileInfo.Permissions))
-		}
-
-		// Check metadata changes
-		if old.FileInfo.Metadata != nil || new.FileInfo.Metadata != nil {
-			metaChanges := d.detectMetadataChanges(old.FileInfo.Metadata, new.FileInfo.Metadata)
-			changes = append(changes, metaChanges...)
-		}
-	} else if (old.FileInfo == nil) != (new.FileInfo == nil) {
-		changes = append(changes, "metadata")
+	if old.GID != new.GID {
+		changes = append(changes, fmt.Sprintf("gid (%d → %d)", old.GID, new.GID))
 	}
 
 	if len(changes) == 0 {
 		changes = append(changes, "unknown")
-	}
-
-	return changes
-}
-
-// detectMetadataChanges compares metadata and returns human-readable change descriptions
-func (d *Differ) detectMetadataChanges(oldMeta, newMeta *systemv2.FileMetadata) []string {
-	var changes []string
-
-	// Handle nil cases
-	if oldMeta == nil && newMeta == nil {
-		return changes
-	}
-	if oldMeta == nil {
-		if newMeta.SELinux != nil {
-			changes = append(changes, "selinux added")
-		}
-		if newMeta.Xattrs != nil {
-			changes = append(changes, fmt.Sprintf("xattrs added (%d)", len(newMeta.Xattrs)))
-		}
-		return changes
-	}
-	if newMeta == nil {
-		if oldMeta.SELinux != nil {
-			changes = append(changes, "selinux removed")
-		}
-		if oldMeta.Xattrs != nil {
-			changes = append(changes, fmt.Sprintf("xattrs removed (%d)", len(oldMeta.Xattrs)))
-		}
-		return changes
-	}
-
-	// Compare SELinux
-	if !mapsEqual(oldMeta.SELinux, newMeta.SELinux) {
-		if oldLabel, ok := oldMeta.SELinux["label"]; ok {
-			if newLabel, ok := newMeta.SELinux["label"]; ok {
-				changes = append(changes, fmt.Sprintf("selinux (%s → %s)", oldLabel, newLabel))
-			} else {
-				changes = append(changes, "selinux removed")
-			}
-		} else if _, ok := newMeta.SELinux["label"]; ok {
-			changes = append(changes, "selinux added")
-		}
-	}
-
-	// Compare xattrs
-	if !mapsEqual(oldMeta.Xattrs, newMeta.Xattrs) {
-		added := 0
-		removed := 0
-		modified := 0
-
-		// Check for removed/modified
-		for k, oldVal := range oldMeta.Xattrs {
-			if newVal, exists := newMeta.Xattrs[k]; !exists {
-				removed++
-			} else if newVal != oldVal {
-				modified++
-			}
-		}
-
-		// Check for added
-		for k := range newMeta.Xattrs {
-			if _, exists := oldMeta.Xattrs[k]; !exists {
-				added++
-			}
-		}
-
-		if added > 0 || removed > 0 || modified > 0 {
-			changes = append(changes, fmt.Sprintf("xattrs (+%d -%d ~%d)", added, removed, modified))
-		}
 	}
 
 	return changes
@@ -439,6 +362,131 @@ func (r *Result) GetChangesByType() map[ChangeType][]string {
 	return changes
 }
 
+// GetCriticalChanges returns potentially security-relevant changes
+func (r *Result) GetCriticalChanges() []CriticalChange {
+	var critical []CriticalChange
+
+	criticalPaths := []string{
+		"/etc/passwd", "/etc/shadow", "/etc/sudoers", "/etc/hosts",
+		"/bin/", "/sbin/", "/usr/bin/", "/usr/sbin/",
+		"/boot/", "/etc/systemd/", "/etc/cron", "/etc/ssh/",
+		"/.ssh/", "/root/", "/home/", "/etc/security/",
+		"/lib/systemd/", "/usr/lib/systemd/", "/etc/init.d/",
+	}
+
+	checkCritical := func(path string, changeType ChangeType, record *snapshot.FileRecord) {
+		for _, critPath := range criticalPaths {
+			if strings.Contains(path, critPath) {
+				critical = append(critical, CriticalChange{
+					Path:     path,
+					Type:     changeType,
+					Record:   record,
+					Severity: calculateSeverity(path, changeType),
+					Reason:   explainCriticality(path, changeType),
+				})
+				break
+			}
+		}
+	}
+
+	for path, record := range r.Added {
+		checkCritical(path, ChangeAdded, record)
+	}
+
+	for path, change := range r.Modified {
+		checkCritical(path, ChangeModified, change.NewRecord)
+	}
+
+	for path, record := range r.Deleted {
+		checkCritical(path, ChangeDeleted, record)
+	}
+
+	// Sort by severity
+	sort.Slice(critical, func(i, j int) bool {
+		return critical[i].Severity > critical[j].Severity
+	})
+
+	return critical
+}
+
+// CriticalChange represents a security-relevant change
+type CriticalChange struct {
+	Path     string               `json:"path"`
+	Type     ChangeType           `json:"type"`
+	Record   *snapshot.FileRecord `json:"record"`
+	Severity int                  `json:"severity"` // 1-10 scale
+	Reason   string               `json:"reason"`
+}
+
+// calculateSeverity assigns a severity score to a critical change
+func calculateSeverity(path string, changeType ChangeType) int {
+	// High severity paths
+	highSeverity := []string{
+		"/etc/passwd", "/etc/shadow", "/etc/sudoers",
+		"/bin/", "/sbin/", "/usr/bin/", "/usr/sbin/",
+		"/root/", "/.ssh/",
+	}
+
+	for _, highPath := range highSeverity {
+		if strings.Contains(path, highPath) {
+			switch changeType {
+			case ChangeAdded, ChangeModified:
+				return 9
+			case ChangeDeleted:
+				return 8
+			}
+		}
+	}
+
+	// Medium severity
+	mediumSeverity := []string{
+		"/etc/", "/boot/", "/home/",
+	}
+
+	for _, medPath := range mediumSeverity {
+		if strings.Contains(path, medPath) {
+			switch changeType {
+			case ChangeAdded, ChangeModified:
+				return 6
+			case ChangeDeleted:
+				return 5
+			}
+		}
+	}
+
+	return 3 // Default severity
+}
+
+// explainCriticality explains why a change is considered critical
+func explainCriticality(path string, changeType ChangeType) string {
+	if strings.Contains(path, "/etc/passwd") {
+		return "User account database modified"
+	}
+	if strings.Contains(path, "/etc/shadow") {
+		return "Password hash database modified"
+	}
+	if strings.Contains(path, "/etc/sudoers") {
+		return "Sudo privileges configuration modified"
+	}
+	if strings.Contains(path, "/bin/") || strings.Contains(path, "/sbin/") {
+		return "System binary modified"
+	}
+	if strings.Contains(path, "/.ssh/") {
+		return "SSH configuration or keys modified"
+	}
+	if strings.Contains(path, "/root/") {
+		return "Root user directory modified"
+	}
+	if strings.Contains(path, "/etc/systemd/") {
+		return "Systemd service configuration modified"
+	}
+	if strings.Contains(path, "/etc/cron") {
+		return "Scheduled task configuration modified"
+	}
+
+	return fmt.Sprintf("Critical system path %s", string(changeType))
+}
+
 // FilterChanges filters the diff result based on criteria
 func (r *Result) FilterChanges(filter func(path string, changeType ChangeType) bool) *Result {
 	filtered := &Result{
@@ -516,8 +564,4 @@ func (r *Result) ExportCSV() [][]string {
 	}
 
 	return rows
-}
-
-func maxin() {
-	fmt.Printf("hi")
 }

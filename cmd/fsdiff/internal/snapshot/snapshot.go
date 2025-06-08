@@ -9,19 +9,18 @@ import (
 	"time"
 
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/system"
-	systemv2 "pkg.jsn.cam/jsn/cmd/fsdiff/internal/system/v2"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/fsdiff"
 )
 
 // FileRecord represents a single file's metadata and hash
 type FileRecord struct {
-	ModTime  time.Time          `json:"mod_time"`
-	Path     string             `json:"path"`
-	Hash     string             `json:"hash"`
-	Size     int64              `json:"size"`
-	Mode     fs.FileMode        `json:"mode"`
-	IsDir    bool               `json:"is_dir"`
-	FileInfo *systemv2.FileInfo `json:"file_info,omitempty"` // v2 metadata (permissions, ownership, xattrs, selinux)
+	Path    string      `json:"path"`
+	Hash    string      `json:"hash"`
+	Size    int64       `json:"size"`
+	Mode    fs.FileMode `json:"mode"`
+	ModTime time.Time   `json:"mod_time"`
+	IsDir   bool        `json:"is_dir"`
+	UID     int         `json:"uid,omitempty"`
+	GID     int         `json:"gid,omitempty"`
 }
 
 // ScanStats contains statistics about the filesystem scan
@@ -35,34 +34,36 @@ type ScanStats struct {
 
 // SimpleMerkleData contains just the essential merkle information for serialization
 type SimpleMerkleData struct {
-	RootHash  uint64 `json:"root_hash"`
-	LeafCount int    `json:"leaf_count"`
-	Depth     int    `json:"depth"`
+	RootHash  [32]byte `json:"root_hash"`
+	LeafCount int      `json:"leaf_count"`
+	Depth     int      `json:"depth"`
 }
 
 // Snapshot represents a complete filesystem snapshot
 type Snapshot struct {
-	Tree       interface{}            `json:"-"` // Don't serialize tree - will be rebuilt
-	Files      map[string]*FileRecord `json:"files"`
 	SystemInfo system.SystemInfo      `json:"system_info"`
-	Version    string                 `json:"version"`
-	Stats      ScanStats              `json:"stats"`
+	Files      map[string]*FileRecord `json:"files"`
+	MerkleRoot [32]byte               `json:"merkle_root"`
 	MerkleData SimpleMerkleData       `json:"merkle_data"` // Store essential merkle info
-	MerkleRoot uint64                 `json:"merkle_root"`
+	Tree       interface{}            `json:"-"`           // Don't serialize tree - will be rebuilt
+	Stats      ScanStats              `json:"stats"`
+	Version    string                 `json:"version"`
 }
 
 // SnapshotHeader contains metadata for quick snapshot inspection
 type SnapshotHeader struct {
-	Created    time.Time         `json:"created"`
-	SystemInfo system.SystemInfo `json:"system_info"`
 	Version    string            `json:"version"`
+	SystemInfo system.SystemInfo `json:"system_info"`
 	Stats      ScanStats         `json:"stats"`
-	MerkleRoot uint64            `json:"merkle_root"`
+	MerkleRoot [32]byte          `json:"merkle_root"`
+	Created    time.Time         `json:"created"`
 }
+
+const SnapshotVersion = "2.0.0"
 
 // Save saves a snapshot to disk with compression
 func Save(snapshot *Snapshot, filename string) error {
-	snapshot.Version = fsdiff.SnapshotVersion
+	snapshot.Version = SnapshotVersion
 
 	// Extract merkle data before serialization
 	if snapshot.Tree != nil {
@@ -96,7 +97,7 @@ func Save(snapshot *Snapshot, filename string) error {
 	// Set gzip header metadata
 	gzWriter.Name = filename
 	gzWriter.Comment = fmt.Sprintf("fsdiff snapshot v%s - %s",
-		fsdiff.Version, snapshot.SystemInfo.String())
+		SnapshotVersion, snapshot.SystemInfo.Hostname)
 	gzWriter.ModTime = time.Now()
 
 	// Encode the snapshot
@@ -175,7 +176,7 @@ func Load(filename string) (*Snapshot, error) {
 
 // SimpleMerkleTree is a minimal tree representation for compatibility
 type SimpleMerkleTree struct {
-	RootHash  uint64
+	RootHash  [32]byte
 	LeafCount int
 	Depth     int
 }
@@ -194,8 +195,8 @@ func (t *SimpleMerkleTree) CompareWith(other interface{}) interface{} {
 
 // SimpleTreeComparison represents a basic tree comparison
 type SimpleTreeComparison struct {
-	LeftRoot  uint64
-	RightRoot uint64
+	LeftRoot  [32]byte
+	RightRoot [32]byte
 	Same      bool
 }
 
