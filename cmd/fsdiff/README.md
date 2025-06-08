@@ -21,10 +21,9 @@ Fast parallel filesystem diff tool for cybersecurity competitions and system adm
 
 ### Build
 ```bash
-git clone <repository-url>
-cd fsdiff
-go mod tidy
-go build -o fsdiff main.go
+git clone https://github.com/JasonLovesDoggo/jsn
+cd cmd/fsdiff
+go build -o fsdiff
 ```
 
 ## Usage
