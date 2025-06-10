@@ -588,10 +588,6 @@ func main() {
 		logMessage("-------------------- Program Exiting --------------------")
 	}()
 
-	fmt.Println("Go Code Typing Simulator starting...")
-	fmt.Println("This program will simulate coding activity by typing random Go code snippets.")
-	fmt.Println("All operational messages will be logged to the console.")
-
 	intervalRange := flag.Duration("interval-range", 8*time.Minute, "Maximum PAUSE duration between typing bursts (e.g., 30m, 1h)")
 	burstRange := flag.Duration("burst-range", 7*time.Minute, "Maximum active typing burst duration (e.g., 5m, 15m)")
 	intervalBetweenTyping := flag.Duration("interval-between-typing", 7*time.Second, "Base interval between typing new code blocks within a burst (e.g., 5s, 10s)")
