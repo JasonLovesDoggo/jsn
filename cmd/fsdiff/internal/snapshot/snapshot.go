@@ -121,7 +121,7 @@ func Save(snapshot *Snapshot, filename string) error {
 	if err == nil {
 		if snapshot.Stats.TotalSize > 0 {
 			compressionRatio := (1.0 - float64(stat.Size())/float64(snapshot.Stats.TotalSize)) * 100
-			fmt.Printf("💾 Snapshot saved: %s (%.1f MB, %.1f%% compression)\n",
+			fmt.Printf("💾 Snapshot saved: %s (%.1f MB, %.3f%% compression)\n",
 				filename, float64(stat.Size())/1024/1024, compressionRatio)
 		} else {
 			fmt.Printf("💾 Snapshot saved: %s (%.1f MB)\n",
