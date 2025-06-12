@@ -59,7 +59,7 @@ func HandleStartup() {
 	flag.Parse()
 	flagenv.Parse()
 	//flagfolder.Parse()
-	flag.Parse()
+	flag.Parse() // parse again to ensure that the flags are the last source of truth
 	slog.Init()
 
 	if *licenseShow {
