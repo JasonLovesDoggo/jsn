@@ -1,7 +1,7 @@
 # fsdiff - High-Performance Filesystem Diff Tool
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/Go-1.24+-blue.svg)](https://golang.org)
+[![License](https://img.shields.io/badge/License-aGPLv3-green.svg)](../../LICENSE)
 
 Fast parallel filesystem diff tool for cybersecurity competitions and system administration. Detect filesystem changes using Merkle trees and parallel processing.
 
@@ -17,7 +17,7 @@ Fast parallel filesystem diff tool for cybersecurity competitions and system adm
 ## Installation
 
 ### Prerequisites
-- Go 1.21+
+- Go 1.24+
 
 ### Build
 ```bash
