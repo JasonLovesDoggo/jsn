@@ -52,25 +52,25 @@ func GenerateHTML(result *diff.Result, filename string) error {
 
 // HTMLReportData contains all data needed for the HTML report
 type HTMLReportData struct {
-	Result            *diff.Result
 	GeneratedAt       time.Time
-	CriticalChanges   []diff.CriticalChange
+	Result            *diff.Result
 	ChangesByType     map[diff.ChangeType][]string
-	TopLargestAdded   []FileSize
-	TopLargestDeleted []FileSize
 	AddedTreeHTML     string
 	ModifiedTreeHTML  string
 	DeletedTreeHTML   string
+	CriticalChanges   []diff.CriticalChange
+	TopLargestAdded   []FileSize
+	TopLargestDeleted []FileSize
 }
 
 // TreeNode represents a node in the file tree
 type TreeNode struct {
+	File     interface{} // *snapshot.FileRecord or *diff.ChangeDetail
+	Children map[string]*TreeNode
 	Name     string
 	Path     string
+	Count    int // Number of files in this directory
 	IsDir    bool
-	Children map[string]*TreeNode
-	File     interface{} // *snapshot.FileRecord or *diff.ChangeDetail
-	Count    int         // Number of files in this directory
 }
 
 // FileSize represents a file and its size for sorting
