@@ -29,19 +29,3 @@ portkill -l 5000
 # Kill processes using multiple ports
 portkill 8080 3000 5000
 ```
-
-## Alias
-
-This utility can also be invoked with the alias `pk`:
-
-```bash
-pk 8080
-```
-
-## Environment Variables
-
-All flags can be set using environment variables with the prefix `PORTKILL_`:
-
-- `PORTKILL_F`: Force kill (equivalent to -f)
-- `PORTKILL_L`: List only (equivalent to -l)
-- `PORTKILL_V`: Verbose output (equivalent to -v)

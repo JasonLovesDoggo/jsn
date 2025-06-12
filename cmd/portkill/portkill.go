@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"pkg.jsn.cam/jsn/flagenv"
+	"pkg.jsn.cam/jsn/internal"
 )
 
 var (
@@ -19,10 +19,7 @@ var (
 )
 
 func main() {
-	// Configure flagenv and program info
-	flagenv.ParseWithPrefix("PORTKILL_")
-
-	flag.Parse()
+	internal.HandleStartup()
 
 	if flag.NArg() == 0 {
 		printUsage()
