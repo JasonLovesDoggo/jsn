@@ -9,16 +9,17 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// Permission bit constants
+const (
+	PERM_SETUID = 0o4000 // Set user ID on execution
+	PERM_SETGID = 0o2000 // Set group ID on execution
+	PERM_STICKY = 0o1000 // Sticky bit
+)
+
 // File attribute flags for ext2/3/4 filesystems
 const (
-	FS_SECRM_FL     = 0x00000001 // Secure deletion
-	FS_UNRM_FL      = 0x00000002 // Undelete
-	FS_COMPR_FL     = 0x00000004 // Compress file
-	FS_SYNC_FL      = 0x00000008 // Synchronous updates
 	FS_IMMUTABLE_FL = 0x00000010 // Immutable file
 	FS_APPEND_FL    = 0x00000020 // Append only
-	FS_NODUMP_FL    = 0x00000040 // Do not dump file
-	FS_NOATIME_FL   = 0x00000080 // Do not update atime
 )
 
 func GetFileInfo(path string, info fs.FileInfo) *FileInfo {
@@ -32,13 +33,13 @@ func GetFileInfo(path string, info fs.FileInfo) *FileInfo {
 	// Convert special mode bits to their traditional octal representation
 	var special uint16
 	if info.Mode()&fs.ModeSetuid != 0 {
-		special |= 0o4000
+		special |= PERM_SETUID
 	}
 	if info.Mode()&fs.ModeSetgid != 0 {
-		special |= 0o2000
+		special |= PERM_SETGID
 	}
 	if info.Mode()&fs.ModeSticky != 0 {
-		special |= 0o1000
+		special |= PERM_STICKY
 	}
 
 	meta := &FileMetadata{}
@@ -86,10 +87,8 @@ func GetFileInfo(path string, info fs.FileInfo) *FileInfo {
 		if attrs, err := getFileAttrs(path); err == nil {
 			meta.Immutable = attrs&FS_IMMUTABLE_FL != 0
 			meta.AppendOnly = attrs&FS_APPEND_FL != 0
-			meta.NoDump = attrs&FS_NODUMP_FL != 0
-			meta.Compressed = attrs&FS_COMPR_FL != 0
 
-			if meta.Immutable || meta.AppendOnly || meta.NoDump || meta.Compressed {
+			if meta.Immutable || meta.AppendOnly {
 				hasMetadata = true
 			}
 		}

@@ -15,6 +15,4 @@ type FileMetadata struct {
 	ACLs         []string          `json:"a,omitempty"`  // POSIX ACLs
 	Immutable    bool              `json:"im,omitempty"` // immutable flag
 	AppendOnly   bool              `json:"ao,omitempty"` // append-only flag
-	NoDump       bool              `json:"nd,omitempty"` // nodump flag
-	Compressed   bool              `json:"co,omitempty"` // compressed flag
 }

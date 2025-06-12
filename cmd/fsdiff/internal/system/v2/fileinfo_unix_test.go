@@ -157,8 +157,6 @@ func TestGetFileInfo_FileAttributes(t *testing.T) {
 	if fi.Metadata != nil {
 		assert.IsType(t, false, fi.Metadata.Immutable)
 		assert.IsType(t, false, fi.Metadata.AppendOnly)
-		assert.IsType(t, false, fi.Metadata.NoDump)
-		assert.IsType(t, false, fi.Metadata.Compressed)
 	}
 }
 
@@ -200,8 +198,8 @@ func TestGetFileInfo_SpecialPermissions(t *testing.T) {
 	// Check that the file mode contains the setuid bit
 	assert.True(t, info.Mode()&os.ModeSetuid != 0, "File should have setuid bit set")
 	// The permissions field should have the setuid bit (4755)
-	assert.True(t, fi.Permissions&0o4000 != 0, "Should detect setuid bit in permissions")
-	assert.Equal(t, uint16(0o4755), fi.Permissions, "Should have setuid bit set")
+	assert.True(t, fi.Permissions&PERM_SETUID != 0, "Should detect setuid bit in permissions")
+	assert.Equal(t, uint16(PERM_SETUID|0o755), fi.Permissions, "Should have setuid bit set")
 
 	// Test setgid file
 	sgidPath := filepath.Join(tmp, "sgidfile")
@@ -215,8 +213,8 @@ func TestGetFileInfo_SpecialPermissions(t *testing.T) {
 	// Check that the file mode contains the setgid bit
 	assert.True(t, info.Mode()&os.ModeSetgid != 0, "File should have setgid bit set")
 	// The permissions field should have the setgid bit (2755)
-	assert.True(t, fi.Permissions&0o2000 != 0, "Should detect setgid bit in permissions")
-	assert.Equal(t, uint16(0o2755), fi.Permissions, "Should have setgid bit set")
+	assert.True(t, fi.Permissions&PERM_SETGID != 0, "Should detect setgid bit in permissions")
+	assert.Equal(t, uint16(PERM_SETGID|0o755), fi.Permissions, "Should have setgid bit set")
 }
 
 func TestGetAllXattrs(t *testing.T) {
