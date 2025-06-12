@@ -178,11 +178,12 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 		return fmt.Errorf("failed to write header: %v", err)
 	}
 
-	// Start result collector with memory-limited batch
+	// Start result collector with memory-limited batch and rolling merkle calculation
 	results := make(chan *FileResult, s.config.Workers*10)
 	const batchSize = 10000 // Process files in batches of 10k
 	batch := make([]*snapshot.FileRecord, 0, batchSize)
-	var merkleHashes []uint64 // For streaming merkle calculation
+	// Use rolling XOR for merkle root calculation to avoid accumulating all hashes
+	var rollingMerkleRoot uint64 = 0
 
 	var collectorWg sync.WaitGroup
 	collectorWg.Add(1)
@@ -197,7 +198,8 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 
 			// Add to current batch
 			batch = append(batch, result.Record)
-			merkleHashes = append(merkleHashes, merkle.HashRecord(result.Record))
+			// Rolling XOR for merkle calculation - no memory accumulation
+			rollingMerkleRoot ^= merkle.HashRecord(result.Record)
 
 			// Update stats
 			if result.Record.IsDir {
@@ -232,9 +234,6 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 	collectorWg.Wait()
 	close(ctx)
 
-	// Calculate final merkle root from collected hashes
-	merkleRoot := merkle.CalculateRootFromHashes(merkleHashes)
-
 	// Write final stats
 	duration := time.Since(s.stats.StartTime)
 	finalStats := snapshot.ScanStats{
@@ -249,7 +248,7 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 		return fmt.Errorf("failed to write final stats: %v", err)
 	}
 
-	if err := encoder.Encode(merkleRoot); err != nil {
+	if err := encoder.Encode(rollingMerkleRoot); err != nil {
 		return fmt.Errorf("failed to write merkle root: %v", err)
 	}
 
@@ -258,11 +257,24 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 		return fmt.Errorf("failed to close gzip writer: %v", err)
 	}
 
+	// Get final snapshot size for reporting
+	fileInfo, sizeErr := file.Stat()
+	snapshotSize := int64(0)
+	if sizeErr == nil {
+		snapshotSize = fileInfo.Size()
+	}
+
 	if s.config.Verbose {
 		fmt.Printf("✅ Streaming scan complete: %d files, %d dirs, %s in %v (%.0f files/sec)\n",
 			finalStats.FileCount, finalStats.DirCount,
 			formatBytes(finalStats.TotalSize), finalStats.ScanDuration,
 			float64(finalStats.FileCount)/finalStats.ScanDuration.Seconds())
+
+		if snapshotSize > 0 {
+			compressionRatio := (1.0 - float64(snapshotSize)/float64(finalStats.TotalSize)) * 100
+			fmt.Printf("💾 Snapshot saved: %s (%.1f MB, %.3f%% compression)\n",
+				outputFile, float64(snapshotSize)/(1024*1024), compressionRatio)
+		}
 
 		if finalStats.ErrorCount > 0 {
 			fmt.Printf("⚠️  Errors: %d\n", finalStats.ErrorCount)
