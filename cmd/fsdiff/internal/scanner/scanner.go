@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -45,7 +46,16 @@ func New(config *Config) *Scanner {
 		config.BufferSize = 256 * 1024
 	}
 	if config.Workers == 0 {
-		config.Workers = runtime.NumCPU() * 2
+		// Optimize for memory efficiency while maintaining speed
+		// More workers = faster but exponentially more memory
+		cores := runtime.NumCPU()
+		if cores <= 4 {
+			config.Workers = cores * 2 // 8 workers max on small systems
+		} else if cores <= 8 {
+			config.Workers = cores + 4 // 12 workers max on medium systems
+		} else {
+			config.Workers = cores // Cap at core count for large systems
+		}
 	}
 
 	// Increase file descriptor limit
@@ -60,7 +70,7 @@ func New(config *Config) *Scanner {
 		stats:   &ScanStats{},
 		ignorer: newPathIgnorer(config.IgnorePatterns),
 		hasher:  newHasher(config.Workers, config.BufferSize),
-		walker:  newWalker(config.Workers * 4),
+		walker:  newWalker(config.Workers * 2),
 	}
 }
 
@@ -79,7 +89,7 @@ func (s *Scanner) ScanFilesystem(rootPath string) (*snapshot.Snapshot, error) {
 	}
 
 	// Start result collector
-	results := make(chan *FileResult, s.config.Workers*10)
+	results := make(chan *FileResult, s.config.Workers*2)
 	files := make(map[string]*snapshot.FileRecord)
 
 	var collectorWg sync.WaitGroup
@@ -179,7 +189,7 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 	}
 
 	// Start result collector with memory-limited batch and rolling merkle calculation
-	results := make(chan *FileResult, s.config.Workers*10)
+	results := make(chan *FileResult, s.config.Workers*2)
 	const batchSize = 10000 // Process files in batches of 10k
 	batch := make([]*snapshot.FileRecord, 0, batchSize)
 	// Use rolling XOR for merkle root calculation to avoid accumulating all hashes
@@ -295,6 +305,10 @@ func (s *Scanner) progressMonitor(ctx <-chan struct{}) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
+	// Memory profiling setup
+	memCount := 0
+	var lastMemUsage uint64
+
 	for {
 		select {
 		case <-ctx:
@@ -306,8 +320,31 @@ func (s *Scanner) progressMonitor(ctx <-chan struct{}) {
 			elapsed := time.Since(s.stats.StartTime)
 			rate := float64(files+dirs) / elapsed.Seconds()
 
-			fmt.Printf("📊 %d files, %d dirs, %s | %.0f items/sec\n",
-				files, dirs, formatBytes(bytes), rate)
+			// Get current memory stats (Go heap + system memory)
+			var m runtime.MemStats
+			runtime.ReadMemStats(&m)
+			goHeapMB := m.Alloc / 1024 / 1024 // Go heap in MB
+			totalMemMB := m.Sys / 1024 / 1024 // Total system memory in MB (includes mmap, stacks, etc.)
+
+			// Check for significant memory increase (use total system memory)
+			memDiff := int64(totalMemMB) - int64(lastMemUsage)
+			if memDiff > 100 { // Alert if memory increases by more than 100MB
+				fmt.Printf("🚨 MEMORY SPIKE: +%d MB (heap: %d MB, total: %d MB)\n", memDiff, goHeapMB, totalMemMB)
+
+				// Create memory profile on significant spike
+				memCount++
+				filename := fmt.Sprintf("fsdiff-mem-profile-%d.prof", memCount)
+				if f, err := os.Create(filename); err == nil {
+					pprof.WriteHeapProfile(f)
+					f.Close()
+					fmt.Printf("💾 Memory profile saved: %s\n", filename)
+				}
+			}
+
+			fmt.Printf("📊 %d files, %d dirs, %s | %.0f items/sec | %d MB heap / %d MB total\n",
+				files, dirs, formatBytes(bytes), rate, goHeapMB, totalMemMB)
+
+			lastMemUsage = totalMemMB
 		}
 	}
 }
