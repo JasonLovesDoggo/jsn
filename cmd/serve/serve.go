@@ -1,4 +1,3 @@
-// Command quickserv serves a folder of files over HTTP quickly.
 package main
 
 import (
@@ -10,13 +9,28 @@ import (
 )
 
 var (
-	port = flag.String("port", "3000", "port to use")
-	dir  = flag.String("dir", ".", "directory to serve")
+	port    = flag.String("port", "3000", "port to use")
+	dir     = flag.String("dir", ".", "directory to serve")
+	verbose = flag.Bool("v", false, "enable verbose logging")
 )
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s %s", r.RemoteAddr, r.Method, r.URL.Path)
+		next.ServeHTTP(w, r)
+	})
+}
 
 func main() {
 	internal.HandleStartup()
-	http.Handle("/", http.FileServer(http.Dir(*dir)))
+
+	var handler = http.FileServer(http.Dir(*dir))
+	if *verbose {
+		handler = loggingMiddleware(handler)
+	}
+
+	http.Handle("/", handler)
+
 	log.Printf("Serving %s on port %s", *dir, *port)
-	http.ListenAndServe(":"+*port, nil)
+	log.Fatal(http.ListenAndServe(":"+*port, nil))
 }
