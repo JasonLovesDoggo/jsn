@@ -9,6 +9,12 @@ type FileInfo struct {
 }
 
 type FileMetadata struct {
-	SELinux map[string]string `json:"s,omitempty"`
-	Xattrs  map[string]string `json:"x,omitempty"`
+	SELinux      map[string]string `json:"s,omitempty"`
+	Xattrs       map[string]string `json:"x,omitempty"`
+	Capabilities string            `json:"c,omitempty"`  // file capabilities
+	ACLs         []string          `json:"a,omitempty"`  // POSIX ACLs
+	Immutable    bool              `json:"im,omitempty"` // immutable flag
+	AppendOnly   bool              `json:"ao,omitempty"` // append-only flag
+	NoDump       bool              `json:"nd,omitempty"` // nodump flag
+	Compressed   bool              `json:"co,omitempty"` // compressed flag
 }
