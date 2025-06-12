@@ -24,7 +24,6 @@ var (
 
 func main() {
 	internal.HandleStartup()
-	flag.Parse()
 
 	lg := slog.Default().With("domain", *domain, "configPath", *tomlConfig)
 
