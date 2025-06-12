@@ -36,6 +36,38 @@ func CalculateMerkleRoot(files map[string]*snapshot.FileRecord) uint64 {
 	return hasher.Sum64()
 }
 
+// HashRecord creates a hash for a single file record
+func HashRecord(record *snapshot.FileRecord) uint64 {
+	hasher := xxhash.New()
+	hasher.WriteString(record.Path)
+	hasher.WriteString(record.Hash)
+	return hasher.Sum64()
+}
+
+// CalculateRootFromHashes combines a slice of hashes into a single root hash
+func CalculateRootFromHashes(hashes []uint64) uint64 {
+	if len(hashes) == 0 {
+		return 0
+	}
+
+	// Sort hashes for deterministic ordering
+	sort.Slice(hashes, func(i, j int) bool {
+		return hashes[i] < hashes[j]
+	})
+
+	// Combine all hashes
+	hasher := xxhash.New()
+	for _, hash := range hashes {
+		// Convert uint64 to bytes and write
+		hasher.Write([]byte{
+			byte(hash), byte(hash >> 8), byte(hash >> 16), byte(hash >> 24),
+			byte(hash >> 32), byte(hash >> 40), byte(hash >> 48), byte(hash >> 56),
+		})
+	}
+
+	return hasher.Sum64()
+}
+
 func calculateMerkleRootParallel(files map[string]*snapshot.FileRecord) uint64 {
 	// Extract paths
 	paths := make([]string, 0, len(files))

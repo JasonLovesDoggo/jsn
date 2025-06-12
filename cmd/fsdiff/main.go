@@ -109,21 +109,15 @@ func handleSnapshot() {
 	}
 
 	s := scanner.New(config)
-	snap, err := s.ScanFilesystem(rootPath)
-	if err != nil {
-		fmt.Printf("❌ Error scanning filesystem: %v\n", err)
-		os.Exit(1)
-	}
 
-	fmt.Printf("💾 Saving snapshot to: %s\n", outputFile)
-	if err := snapshot.Save(snap, outputFile); err != nil {
-		fmt.Printf("❌ Error saving snapshot: %v\n", err)
+	// Use streaming scan to keep memory usage low
+	fmt.Printf("💾 Creating snapshot: %s\n", outputFile)
+	if err := s.ScanToFile(rootPath, outputFile); err != nil {
+		fmt.Printf("❌ Error creating snapshot: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Printf("✅ Snapshot created successfully!\n")
-	fmt.Printf("   Files: %d, Directories: %d\n", snap.Stats.FileCount, snap.Stats.DirCount)
-	fmt.Printf("   Size: %s, Duration: %v\n", formatBytes(snap.Stats.TotalSize), snap.Stats.ScanDuration)
 }
 
 func handleDiff() {
