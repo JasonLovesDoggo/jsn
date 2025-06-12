@@ -127,7 +127,7 @@ func GetCriticalityRules() []CriticalityRule {
 			Category:    "privileged-access",
 			Description: "Root user directory modified",
 			Matcher:     pathPrefixMatch("/root/"),
-			Severity:    map[ChangeType]int{ChangeAdded: 8, ChangeModified: 8, ChangeDeleted: 7},
+			Severity:    map[ChangeType]int{ChangeAdded: 3, ChangeModified: 3, ChangeDeleted: 2},
 		},
 		{
 			Name:        "root-profile",

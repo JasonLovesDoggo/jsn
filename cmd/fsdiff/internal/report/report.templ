@@ -53,6 +53,48 @@ templ reportTemplate(data *HTMLReportData) {
 					icon.style.transform = 'rotate(-90deg)';
 				}
 			}
+
+			function toggleTree(id) {
+				const element = document.getElementById(id);
+				const icon = document.getElementById(id + '-tree-icon');
+				if (element.classList.contains('hidden')) {
+					element.classList.remove('hidden');
+					element.classList.add('animate-slide-down');
+					icon.textContent = '📂';
+				} else {
+					element.classList.add('hidden');
+					icon.textContent = '📁';
+				}
+			}
+
+			function expandAll(sectionId) {
+				const section = document.getElementById(sectionId);
+				const treeItems = section.querySelectorAll('[id$="-tree"]');
+				const treeIcons = section.querySelectorAll('[id$="-tree-icon"]');
+				
+				treeItems.forEach(item => {
+					item.classList.remove('hidden');
+					item.classList.add('animate-slide-down');
+				});
+				
+				treeIcons.forEach(icon => {
+					icon.textContent = '📂';
+				});
+			}
+
+			function collapseAll(sectionId) {
+				const section = document.getElementById(sectionId);
+				const treeItems = section.querySelectorAll('[id$="-tree"]');
+				const treeIcons = section.querySelectorAll('[id$="-tree-icon"]');
+				
+				treeItems.forEach(item => {
+					item.classList.add('hidden');
+				});
+				
+				treeIcons.forEach(icon => {
+					icon.textContent = '📁';
+				});
+			}
 		</script>
 			<link rel="preconnect" href="https://fonts.googleapis.com"/>
 			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -259,29 +301,16 @@ templ reportTemplate(data *HTMLReportData) {
 					</button>
 					<div id="added-files" class="animate-slide-down">
 						if len(data.Result.Added) > 0 {
-							<div class="overflow-x-auto">
-								<table class="w-full">
-									<thead>
-										<tr class="border-b border-gray-600">
-											<th class="text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50">Path</th>
-											<th class="text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50">Size</th>
-											<th class="text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50">Modified</th>
-										</tr>
-									</thead>
-									<tbody>
-										for path, record := range data.Result.Added {
-											<tr class="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors group">
-												<td class="py-3 px-4">
-													<code class="bg-gray-900 text-green-400 px-2 py-1 rounded text-sm font-mono group-hover:bg-gray-800 transition-colors">
-														{ path }
-													</code>
-												</td>
-												<td class="py-3 px-4 text-sm text-blue-400 font-mono">{ formatBytes(record.Size) }</td>
-												<td class="py-3 px-4 text-sm text-gray-400 font-mono">{ formatTime(record.ModTime) }</td>
-											</tr>
-										}
-									</tbody>
-								</table>
+							<div class="mb-4 flex gap-2">
+								<button onclick="expandAll('added-files')" class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors">
+									Expand All
+								</button>
+								<button onclick="collapseAll('added-files')" class="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded transition-colors">
+									Collapse All
+								</button>
+							</div>
+							<div class="space-y-1" id="added-tree-container">
+								@templ.Raw(data.AddedTreeHTML)
 							</div>
 						} else {
 							<div class="text-center py-8">
@@ -305,36 +334,16 @@ templ reportTemplate(data *HTMLReportData) {
 					</button>
 					<div id="modified-files" class="animate-slide-down">
 						if len(data.Result.Modified) > 0 {
-							<div class="overflow-x-auto">
-								<table class="w-full">
-									<thead>
-										<tr class="border-b border-gray-600">
-											<th class="text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50">Path</th>
-											<th class="text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50">Size</th>
-											<th class="text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50">Changes</th>
-										</tr>
-									</thead>
-									<tbody>
-										for path, change := range data.Result.Modified {
-											<tr class="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors group">
-												<td class="py-3 px-4">
-													<code class="bg-gray-900 text-yellow-400 px-2 py-1 rounded text-sm font-mono group-hover:bg-gray-800 transition-colors">
-														{ path }
-													</code>
-												</td>
-												<td class="py-3 px-4 text-sm text-blue-400 font-mono">{ formatBytes(change.NewRecord.Size) }</td>
-												<td class="py-3 px-4 text-sm text-gray-400">
-													for i, ch := range change.Changes {
-														if i > 0 {
-															<span class="text-gray-600">, </span>
-														}
-														<span class="bg-orange-500/20 text-orange-300 px-1 rounded text-xs">{ ch }</span>
-													}
-												</td>
-											</tr>
-										}
-									</tbody>
-								</table>
+							<div class="mb-4 flex gap-2">
+								<button onclick="expandAll('modified-files')" class="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded transition-colors">
+									Expand All
+								</button>
+								<button onclick="collapseAll('modified-files')" class="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded transition-colors">
+									Collapse All
+								</button>
+							</div>
+							<div class="space-y-1" id="modified-tree-container">
+								@templ.Raw(data.ModifiedTreeHTML)
 							</div>
 						} else {
 							<div class="text-center py-8">
@@ -348,9 +357,7 @@ templ reportTemplate(data *HTMLReportData) {
 				<div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700/50 p-6 mb-8 animate-fade-in">
 					<button onclick="toggleCollapse('deleted-files')" class="w-full text-left">
 						<h2 class="text-2xl font-bold text-gray-100 mb-4 flex items-center justify-between hover:text-red-400 transition-colors">
-							<span class="flex
-
-							items-center">
+							<span class="flex items-center">
 								<span class="text-3xl mr-3">❌</span>
 								Deleted Files
 								<span class="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">{ fmt.Sprint(data.Result.Summary.DeletedCount) }</span>
@@ -360,29 +367,16 @@ templ reportTemplate(data *HTMLReportData) {
 					</button>
 					<div id="deleted-files" class="animate-slide-down">
 						if len(data.Result.Deleted) > 0 {
-							<div class="overflow-x-auto">
-								<table class="w-full">
-									<thead>
-										<tr class="border-b border-gray-600">
-											<th class="text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50">Path</th>
-											<th class="text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50">Size</th>
-											<th class="text-left py-3 px-4 font-semibold text-gray-300 bg-gray-900/50">Modified</th>
-										</tr>
-									</thead>
-									<tbody>
-										for path, record := range data.Result.Deleted {
-											<tr class="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors group">
-												<td class="py-3 px-4">
-													<code class="bg-gray-900 text-red-400 px-2 py-1 rounded text-sm font-mono group-hover:bg-gray-800 transition-colors">
-														{ path }
-													</code>
-												</td>
-												<td class="py-3 px-4 text-sm text-blue-400 font-mono">{ formatBytes(record.Size) }</td>
-												<td class="py-3 px-4 text-sm text-gray-400 font-mono">{ formatTime(record.ModTime) }</td>
-											</tr>
-										}
-									</tbody>
-								</table>
+							<div class="mb-4 flex gap-2">
+								<button onclick="expandAll('deleted-files')" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors">
+									Expand All
+								</button>
+								<button onclick="collapseAll('deleted-files')" class="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded transition-colors">
+									Collapse All
+								</button>
+							</div>
+							<div class="space-y-1" id="deleted-tree-container">
+								@templ.Raw(data.DeletedTreeHTML)
 							</div>
 						} else {
 							<div class="text-center py-8">
@@ -404,3 +398,5 @@ templ reportTemplate(data *HTMLReportData) {
 		</body>
 	</html>
 }
+
+
