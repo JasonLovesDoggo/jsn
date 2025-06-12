@@ -184,6 +184,7 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 	batch := make([]*snapshot.FileRecord, 0, batchSize)
 	// Use rolling XOR for merkle root calculation to avoid accumulating all hashes
 	var rollingMerkleRoot uint64 = 0
+	batchCount := 0
 
 	var collectorWg sync.WaitGroup
 	collectorWg.Add(1)
@@ -215,7 +216,13 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 					atomic.AddInt64(&s.stats.Errors, 1)
 				}
 				batch = batch[:0] // Reset batch, reuse underlying array
-				runtime.GC()      // Force GC after each batch
+				batchCount++
+
+				// Force flush to disk every 10 batches to prevent gzip buffer buildup
+				if batchCount%10 == 0 {
+					gzWriter.Flush()
+				}
+				runtime.GC() // Force GC after each batch
 			}
 		}
 
