@@ -47,7 +47,6 @@ var goKeywords = []string{
 }
 
 // nearbyKeys maps characters to a list of keys physically close on a QWERTY keyboard.
-// Used for simulating typos.
 var nearbyKeys = map[rune][]rune{
 	'q': {'w', 'a', 's'}, 'w': {'q', 'e', 's', 'd', 'a'}, 'e': {'w', 'r', 'd', 'f', 's'}, 'r': {'e', 't', 'f', 'g', 'd'},
 	't': {'r', 'y', 'g', 'h', 'f'}, 'y': {'t', 'u', 'h', 'j', 'g'}, 'u': {'y', 'i', 'j', 'k', 'h'}, 'i': {'u', 'o', 'k', 'l', 'j'},
@@ -59,20 +58,11 @@ var nearbyKeys = map[rune][]rune{
 	' ': {' ', ' ', 'c', 'v', 'b', 'n', 'm'},
 }
 
-// min returns the smaller of two integers.
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// humanType simulates human-like typing of the given text.
 func humanType(text string) {
 	logMessage("humanType: Starting to type text of length ", len(text))
 	defer func() {
 		if r := recover(); r != nil {
-			logMessage("PANIC in humanType while typing: ", r, ". Text (first 50 chars): ", text[:min(50, len(text))])
+			logMessage("PANIC while typing: ", r, ". Text (first 50 chars): ", text[:min(50, len(text))])
 		}
 	}()
 
