@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"pkg.jsn.cam/jsn/pkg/flagr"
 	"strconv"
 	"strings"
 
@@ -13,9 +14,9 @@ import (
 )
 
 var (
-	force   = flag.Bool("f", false, "Force kill the process (SIGKILL instead of SIGTERM)")
-	list    = flag.Bool("l", false, "List processes using the port but don't kill them")
-	verbose = flag.Bool("v", false, "Verbose output")
+	force   = flagr.Bool("force", "f", false, "Force kill the process (SIGKILL instead of SIGTERM)")
+	list    = flagr.Bool("list", "l", false, "List processes using the port but don't kill them")
+	verbose = flagr.Bool("verbose", "v", false, "Verbose output")
 )
 
 func main() {

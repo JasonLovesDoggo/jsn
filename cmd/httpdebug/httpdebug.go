@@ -1,21 +1,21 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"pkg.jsn.cam/jsn/pkg/flagr"
 	"strings"
 
 	"pkg.jsn.cam/jsn/internal"
 )
 
 var (
-	bind   = flag.String("bind", ":3000", "TCP port to bind to")
-	silent = flag.Bool("silent", false, "if set, don't log http headers")
+	bind   = flagr.String("bind", "b", ":3000", "TCP port to bind to")
+	silent = flagr.Bool("silent", "s", false, "if set, don't log http headers")
 )
 
 func main() {

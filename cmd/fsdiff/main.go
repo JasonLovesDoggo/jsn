@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"pkg.jsn.cam/jsn/pkg/flagr"
 	"runtime"
 	"strings"
 
@@ -22,10 +23,11 @@ import (
 )
 
 var (
-	workers = flag.Int("workers", runtime.NumCPU()*2, "Number of worker goroutines")
-	verbose = flag.Bool("v", true, "Verbose output")
-	debug   = flag.Bool("d", false, "Enable pprof profiling on port 6060")
-	ignore  = flag.String("ignore", "", "Comma-separated list of paths/patterns to ignore (e.g., '.cache,node_modules,*.log')")
+	workers = flagr.Int("workers", "w", runtime.NumCPU()*2, "Number of worker goroutines")
+	verbose = flagr.Bool("verbose", "v", true, "Verbose output")
+	debug   = flagr.Bool("debug", "d", false, "Enable pprof profiling on port 6060")
+	ignore  = flagr.String("ignore", "i", "", "Comma-separated list of paths/patterns to ignore (e.g., '.cache,"+
+		"node_modules,*.log')")
 )
 
 func main() {
