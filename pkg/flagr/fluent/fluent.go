@@ -14,7 +14,8 @@ type Flags struct {
 }
 
 // Package-level instance for compatibility with built-in flag module
-var CommandLine = &Flags{flagr.New("")}
+// Uses flagr.CommandLine which delegates to flag.CommandLine
+var CommandLine = &Flags{flagr.CommandLine}
 
 // New creates a new fluent Flags instance
 func New(name string) *Flags {

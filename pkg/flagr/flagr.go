@@ -16,8 +16,9 @@ type Flags struct {
 }
 
 // Package-level instance for compatibility with built-in flag module
+// Uses the built-in flag.CommandLine so both flagr.Parse() and flag.Parse() work
 var CommandLine = &Flags{
-	FlagSet: flag.NewFlagSet("", flag.ExitOnError),
+	FlagSet: flag.CommandLine,
 	shorts:  make(map[string]string),
 }
 
