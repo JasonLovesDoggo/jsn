@@ -7,7 +7,6 @@ import (
 	stdslog "log/slog"
 	"os"
 	"path/filepath"
-
 	"pkg.jsn.cam/jsn"
 
 	"github.com/posener/complete"
@@ -56,6 +55,7 @@ func configFileLocation() string {
 // This is done this way to ensure that command line flags always are the deciding
 // factor as an escape hatch, at the cost of potentially evaluating flags twice.
 func HandleStartup() {
+	//flagr.Parse()
 	flag.Parse()
 	flagenv.Parse()
 	//flagfolder.Parse()

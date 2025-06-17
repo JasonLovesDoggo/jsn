@@ -15,6 +15,12 @@ type Flags struct {
 	shorts map[string]string
 }
 
+// Package-level instance for compatibility with built-in flag module
+var CommandLine = &Flags{
+	FlagSet: flag.NewFlagSet("", flag.ExitOnError),
+	shorts:  make(map[string]string),
+}
+
 // New creates a new Flags instance with support for both long and short form flags.
 // The name parameter is used in usage output and error messages.
 func New(name string) *Flags {
@@ -97,16 +103,22 @@ func (f *Flags) Usage() {
 
 	flags := make(map[string]struct{ short, usage, def string })
 
+	// First pass: collect all long flags
+	f.FlagSet.VisitAll(func(fl *flag.Flag) {
+		if _, isShort := f.shorts[fl.Name]; !isShort {
+			flags[fl.Name] = struct{ short, usage, def string }{
+				usage: fl.Usage,
+				def:   fl.DefValue,
+			}
+		}
+	})
+
+	// Second pass: add short forms to existing long flags
 	f.FlagSet.VisitAll(func(fl *flag.Flag) {
 		if longName, isShort := f.shorts[fl.Name]; isShort {
 			if info, exists := flags[longName]; exists {
 				info.short = fl.Name
 				flags[longName] = info
-			}
-		} else {
-			flags[fl.Name] = struct{ short, usage, def string }{
-				usage: fl.Usage,
-				def:   fl.DefValue,
 			}
 		}
 	})
@@ -130,4 +142,42 @@ func (f *Flags) Usage() {
 		}
 		fmt.Fprintln(f.Output())
 	}
+}
+
+// Package-level functions for compatibility with built-in flag module
+
+func String(long, short, defaultVal, usage string) *string {
+	return CommandLine.String(long, short, defaultVal, usage)
+}
+
+func Bool(long, short string, defaultVal bool, usage string) *bool {
+	return CommandLine.Bool(long, short, defaultVal, usage)
+}
+
+func Int(long, short string, defaultVal int, usage string) *int {
+	return CommandLine.Int(long, short, defaultVal, usage)
+}
+
+func Float64(long, short string, defaultVal float64, usage string) *float64 {
+	return CommandLine.Float64(long, short, defaultVal, usage)
+}
+
+func Duration(long, short string, defaultVal time.Duration, usage string) *time.Duration {
+	return CommandLine.Duration(long, short, defaultVal, usage)
+}
+
+func Var(value flag.Value, long, short, usage string) {
+	CommandLine.Var(value, long, short, usage)
+}
+
+func Parse() {
+	CommandLine.Parse()
+}
+
+func Usage() {
+	CommandLine.Usage()
+}
+
+func SetOutput(output io.Writer) {
+	CommandLine.SetOutput(output)
 }

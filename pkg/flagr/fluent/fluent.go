@@ -13,6 +13,9 @@ type Flags struct {
 	*flagr.Flags
 }
 
+// Package-level instance for compatibility with built-in flag module
+var CommandLine = &Flags{flagr.New("")}
+
 // New creates a new fluent Flags instance
 func New(name string) *Flags {
 	return &Flags{flagr.New(name)}
@@ -196,4 +199,38 @@ func (vf *VarFlag) Usage(u string) *VarFlag {
 
 func (vf *VarFlag) Register() {
 	vf.flags.Var(vf.value, vf.long, vf.short, vf.usage)
+}
+
+// Package-level functions for compatibility with built-in flag module
+
+func String(name string) *StringFlag {
+	return CommandLine.String(name)
+}
+
+func Bool(name string) *BoolFlag {
+	return CommandLine.Bool(name)
+}
+
+func Int(name string) *IntFlag {
+	return CommandLine.Int(name)
+}
+
+func Float64(name string) *Float64Flag {
+	return CommandLine.Float64(name)
+}
+
+func Duration(name string) *DurationFlag {
+	return CommandLine.Duration(name)
+}
+
+func Var(value flag.Value, name string) *VarFlag {
+	return CommandLine.Var(value, name)
+}
+
+func Parse() {
+	CommandLine.Parse()
+}
+
+func Usage() {
+	CommandLine.Usage()
 }
