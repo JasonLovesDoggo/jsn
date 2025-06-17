@@ -8,10 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"pkg.jsn.cam/jsn"
+	"pkg.jsn.cam/jsn/pkg/flagenv"
 
 	"github.com/posener/complete"
 	"go4.org/legal"
-	"pkg.jsn.cam/jsn/flagenv"
 	"pkg.jsn.cam/jsn/internal/manpage"
 	"pkg.jsn.cam/jsn/internal/slog"
 

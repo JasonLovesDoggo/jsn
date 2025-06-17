@@ -4,12 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"pkg.jsn.cam/jsn/pkg/flagenv"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/facebookgo/ensure"
-	"pkg.jsn.cam/jsn/flagenv"
 )
 
 func named(t, v string) string { return strings.ToUpper(t + v) }
