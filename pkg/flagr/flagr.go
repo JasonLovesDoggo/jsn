@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"time"
 )
@@ -14,6 +15,8 @@ type Flags struct {
 	shorts map[string]string
 }
 
+// New creates a new Flags instance with support for both long and short form flags.
+// The name parameter is used in usage output and error messages.
 func New(name string) *Flags {
 	return &Flags{
 		FlagSet: flag.NewFlagSet(name, flag.ExitOnError),
@@ -66,6 +69,9 @@ func (f *Flags) Duration(long, short string, defaultVal time.Duration, usage str
 	return ptr
 }
 
+// Var defines a flag with the specified name, value, and usage string.
+// The argument p points to a flag.Value variable in which to store the value of the flag.
+// Supports both long form (--name) and optional short form (-x) variants.
 func (f *Flags) Var(value flag.Value, long, short, usage string) {
 	f.FlagSet.Var(value, long, usage)
 	if short != "" {
@@ -78,6 +84,14 @@ func (f *Flags) SetOutput(output io.Writer) {
 	f.FlagSet.SetOutput(output)
 }
 
+// Parse parses flag definitions from os.Args[1:]. Must be called after all flags
+// are defined and before flags are accessed by the program.
+func (f *Flags) Parse() {
+	f.FlagSet.Parse(os.Args[1:])
+}
+
+// Usage prints to standard error a usage message documenting all defined command-line flags.
+// The format shows both short and long forms when available, with defaults and descriptions.
 func (f *Flags) Usage() {
 	fmt.Fprintf(f.Output(), "Usage of %s:\n", f.Name())
 

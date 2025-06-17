@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"pkg.jsn.cam/jsn/pkg/flagr"
@@ -21,7 +20,7 @@ func main() {
 	debug := flags.Bool("debug", "", false, "Enable debug mode")
 
 	// Parse command line arguments
-	flags.Parse(os.Args)
+	flags.Parse()
 
 	// Use the flags
 	if *verbose {
