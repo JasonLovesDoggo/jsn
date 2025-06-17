@@ -1,17 +1,17 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"net/http"
+	"pkg.jsn.cam/jsn/pkg/flagr"
 
 	"pkg.jsn.cam/jsn/internal"
 )
 
 var (
-	port    = flag.String("port", "3000", "port to use")
-	dir     = flag.String("dir", ".", "directory to serve")
-	verbose = flag.Bool("v", false, "enable verbose logging")
+	port    = flagr.String("port", "p", "3000", "port to use")
+	dir     = flagr.String("dir", "d", ".", "directory to serve")
+	verbose = flagr.Bool("verbose", "v", false, "enable verbose logging")
 )
 
 func loggingMiddleware(next http.Handler) http.Handler {
