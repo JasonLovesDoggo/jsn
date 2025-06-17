@@ -22,6 +22,13 @@ var CommandLine = &Flags{
 	shorts:  make(map[string]string),
 }
 
+func init() {
+	// Override the default usage function to show flagr's enhanced help with short forms
+	flag.CommandLine.Usage = func() {
+		CommandLine.Usage()
+	}
+}
+
 // New creates a new Flags instance with support for both long and short form flags.
 // The name parameter is used in usage output and error messages.
 func New(name string) *Flags {
@@ -137,7 +144,7 @@ func (f *Flags) Usage() {
 			nameStr = "-" + info.short + ", " + nameStr
 		}
 
-		fmt.Fprintf(f.Output(), "  %-20s %s", nameStr, info.usage)
+		fmt.Fprintf(f.Output(), "  %-25s %s", nameStr, info.usage)
 		if info.def != "" && info.def != "false" {
 			fmt.Fprintf(f.Output(), " (default %s)", info.def)
 		}
