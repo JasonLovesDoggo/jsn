@@ -55,8 +55,7 @@ func configFileLocation() string {
 // This is done this way to ensure that command line flags always are the deciding
 // factor as an escape hatch, at the cost of potentially evaluating flags twice.
 func HandleStartup() {
-	//flagr.Parse()
-	flag.Parse()
+	flag.Parse() // Can either call flag.Parse() or flagr.Parse()
 	flagenv.Parse()
 	//flagfolder.Parse()
 	flag.Parse() // parse again to ensure that the flags are the last source of truth
