@@ -8,7 +8,12 @@ import (
 type stringValue struct{ ptr *string }
 
 func (s *stringValue) Set(val string) error { *s.ptr = val; return nil }
-func (s *stringValue) String() string       { return *s.ptr }
+func (s *stringValue) String() string {
+	if s.ptr == nil {
+		return ""
+	}
+	return *s.ptr
+}
 
 type boolValue struct{ ptr *bool }
 
@@ -17,7 +22,12 @@ func (b *boolValue) Set(val string) error {
 	*b.ptr = v
 	return err
 }
-func (b *boolValue) String() string   { return strconv.FormatBool(*b.ptr) }
+func (b *boolValue) String() string {
+	if b.ptr == nil {
+		return "false"
+	}
+	return strconv.FormatBool(*b.ptr)
+}
 func (b *boolValue) IsBoolFlag() bool { return true }
 
 type intValue struct{ ptr *int }
@@ -27,7 +37,12 @@ func (i *intValue) Set(val string) error {
 	*i.ptr = v
 	return err
 }
-func (i *intValue) String() string { return strconv.Itoa(*i.ptr) }
+func (i *intValue) String() string {
+	if i.ptr == nil {
+		return "0"
+	}
+	return strconv.Itoa(*i.ptr)
+}
 
 type float64Value struct{ ptr *float64 }
 
@@ -36,7 +51,12 @@ func (f *float64Value) Set(val string) error {
 	*f.ptr = v
 	return err
 }
-func (f *float64Value) String() string { return strconv.FormatFloat(*f.ptr, 'g', -1, 64) }
+func (f *float64Value) String() string {
+	if f.ptr == nil {
+		return "0"
+	}
+	return strconv.FormatFloat(*f.ptr, 'g', -1, 64)
+}
 
 type durationValue struct{ ptr *time.Duration }
 
@@ -45,4 +65,9 @@ func (d *durationValue) Set(val string) error {
 	*d.ptr = v
 	return err
 }
-func (d *durationValue) String() string { return d.ptr.String() }
+func (d *durationValue) String() string {
+	if d.ptr == nil {
+		return "0s"
+	}
+	return d.ptr.String()
+}
