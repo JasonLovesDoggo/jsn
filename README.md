@@ -4,12 +4,12 @@ Various experimental things. This is my experimental monorepo where programs wil
 
 ### Command-line Tools (`cmd/`)
 
-- **fsdiff** - High-performance filesystem diff tool using Merkle trees and parallel processing, designed for cybersecurity competitions and system administration
-- **httpdebug** - HTTP header debugging server that displays incoming request headers  
+- **fsdiff** - High-performance filesystem diff tool using Merkle trees and parallel processing, like `git diff` but for your entire system
+- **httpdebug** - HTTP header debugging server that displays incoming request headers, like `nc -l` but for HTTP debugging
 - **pkg.jsn.cam** - Vanity import server for Go packages hosted at https://pkg.jsn.cam
-- **portkill** - Simple utility to kill processes by port number with support for force killing and listing
-- **revproxyd** - Basic reverse proxy daemon for forwarding HTTP requests
-- **serve** - Static file server with optional verbose logging
+- **portkill** - Simple utility to kill processes by port number, like `lsof -ti:PORT | xargs kill` but simpler
+- **revproxyd** - Basic reverse proxy daemon for forwarding HTTP requests, like `nginx` proxy_pass but minimal
+- **serve** - Static file server with optional verbose logging, like `python3 -m http.server` but faster and easier
 - **typer** - Go code generation tool 
 
 ### Libraries (`pkg/`)
