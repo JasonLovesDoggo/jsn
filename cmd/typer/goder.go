@@ -46,7 +46,6 @@ var goKeywords = []string{
 	"done", "quit", "stop", "handle", "query", "route", "model", "util", "helper", "service",
 }
 
-// nearbyKeys maps characters to a list of keys physically close on a QWERTY keyboard.
 var nearbyKeys = map[rune][]rune{
 	'q': {'w', 'a', 's'}, 'w': {'q', 'e', 's', 'd', 'a'}, 'e': {'w', 'r', 'd', 'f', 's'}, 'r': {'e', 't', 'f', 'g', 'd'},
 	't': {'r', 'y', 'g', 'h', 'f'}, 'y': {'t', 'u', 'h', 'j', 'g'}, 'u': {'y', 'i', 'j', 'k', 'h'}, 'i': {'u', 'o', 'k', 'l', 'j'},
