@@ -12,3 +12,6 @@ desc = "Various experimental things. /jsn/ is my monorepo of side projects, hobb
 [caddy-defender]
 [abacus]
 desc = "A highly-scalable and stateless counting API"
+
+[toyreduce]
+desc = "A toy implementation of mapreduce in golang"
