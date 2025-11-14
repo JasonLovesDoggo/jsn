@@ -1,5 +1,7 @@
 /*
 A little tool to parse though openrouter (https://openrouter.ai/) activity export logs and allow you to break it down a little more
+format expected for CSV is
+generation_id,created_at,cost_total,cost_web_search,cost_cache,cost_file_processing,byok_usage_inference,tokens_prompt,tokens_completion,tokens_reasoning,model_permaslug,provider_name,variant,cancelled,streamed,finish_reason_raw,finish_reason_normalized,generation_time_ms,time_to_first_token_ms,app_name,api_key_name
 */
 
 package main
