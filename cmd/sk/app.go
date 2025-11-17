@@ -44,6 +44,7 @@ type model struct {
 	scripts       []*skit.Script
 	matches       []int
 	cursor        int
+	historyIdx    int
 	runner        *skit.Runner
 	stateStore    *skit.StateStore
 	toggleCache   map[string]skit.ToggleAction
@@ -353,19 +354,21 @@ func (m *model) handleCommandChoiceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleHistoryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	historyLen := len(m.historyForSlug())
 	switch msg.String() {
 	case "esc", "h":
 		m.mode = modeBrowse
+		m.historyIdx = 0
 		m.setStatus("Browse mode", false)
 		return m, nil
 	case "up", "k":
-		if m.cursor > 0 {
-			m.cursor--
+		if m.historyIdx < historyLen {
+			m.historyIdx++
 		}
 		return m, nil
 	case "down", "j":
-		if m.cursor < len(m.matches)-1 {
-			m.cursor++
+		if m.historyIdx > 0 {
+			m.historyIdx--
 		}
 		return m, nil
 	default:
@@ -623,4 +626,16 @@ func (m model) historyFor(slug string) []skit.RunRecord {
 		return nil
 	}
 	return state.Runs
+}
+
+func (m model) historyForSlug() []skit.RunRecord {
+	script := m.currentScript()
+	if script == nil {
+		return nil
+	}
+	h := m.historyFor(script.Slug)
+	if m.historyIdx >= len(h) {
+		return h
+	}
+	return h
 }

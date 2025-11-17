@@ -111,23 +111,49 @@ func renderHistoryView(m model) string {
 	title := titleStyle.Render(fmt.Sprintf("History · %s", script.Name))
 	b.WriteString(title + "\n")
 	history := m.historyFor(script.Slug)
+	historyLen := len(history)
 	if len(history) == 0 {
 		b.WriteString("No runs recorded for this script yet.\n")
 		b.WriteString("\n" + renderFooter(m) + "\n")
 		return b.String()
 	}
+	if m.historyIdx >= historyLen {
+		b.WriteString("No earlier runs.\n\n")
+		b.WriteString(renderFooter(m) + "\n")
+		return b.String()
+	}
 	maxRows := 15
-	start := len(history) - maxRows
+	start := historyLen - maxRows
 	if start < 0 {
 		start = 0
 	}
-	for i := start; i < len(history); i++ {
+	highlight := historyLen - 1 - m.historyIdx
+	if highlight < 0 {
+		highlight = 0
+	}
+	if highlight < start {
+		start = highlight
+	} else if highlight >= start+maxRows {
+		start = highlight - maxRows + 1
+	}
+	if start < 0 {
+		start = 0
+	}
+	end := start + maxRows
+	if end > historyLen {
+		end = historyLen
+	}
+	for i := start; i < end; i++ {
 		run := history[i]
 		status := statusOK.Render("OK")
 		if !run.Success {
 			status = statusErr.Render("ERR")
 		}
-		b.WriteString(fmt.Sprintf("%s %s (%s)\n", run.Time.Format("2006-01-02 15:04:05"), status, strings.ToUpper(run.Action)))
+		prefix := " "
+		if i == highlight {
+			prefix = selectedStyle.Render("›")
+		}
+		b.WriteString(fmt.Sprintf("%s %s %s (%s)\n", prefix, run.Time.Format("2006-01-02 15:04:05"), status, strings.ToUpper(run.Action)))
 		if run.Output != "" {
 			lines := strings.Split(strings.TrimSpace(run.Output), "\n")
 			for _, line := range lines {

@@ -75,8 +75,8 @@ func (r *Runner) Execute(ctx context.Context, script *Script) RunResult {
 		if err != nil {
 			record.Err = err.Error()
 		}
-		if recErr := r.states.Record(script.Slug, action, record); recErr != nil && result.Err == nil {
-			result.Err = fmt.Errorf("record state: %w", recErr)
+		if recErr := r.states.Record(script.Slug, action, record); recErr != nil {
+			fmt.Fprintf(os.Stderr, "skit: failed to record history for %s: %v\n", script.Slug, recErr)
 		}
 	}
 	return result
