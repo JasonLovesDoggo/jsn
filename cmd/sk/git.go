@@ -111,8 +111,14 @@ func isDirEmpty(dir string) (bool, error) {
 	}
 	defer f.Close()
 	_, err = f.Readdirnames(1)
+	if err == nil {
+		// Successfully read a name: directory is not empty
+		return false, nil
+	}
 	if errors.Is(err, io.EOF) {
+		// No names: directory is empty
 		return true, nil
 	}
+	// Some other error occurred
 	return false, err
 }
