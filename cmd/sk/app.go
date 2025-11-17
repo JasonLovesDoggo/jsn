@@ -601,11 +601,8 @@ func (s scriptSource) String(i int) string {
 		return ""
 	}
 	entry := s.scripts[i]
-	var tags string
-	if len(entry.Tags) > 0 {
-		tags = strings.Join(entry.Tags, " ")
-	}
-	return strings.ToLower(strings.TrimSpace(entry.Name + " " + entry.Description + " " + tags))
+	fields := []string{entry.Name, entry.Slug, strings.Join(entry.Tags, " ")}
+	return strings.ToLower(strings.TrimSpace(strings.Join(fields, " ")))
 }
 
 type commandEditMsg struct {

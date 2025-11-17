@@ -11,7 +11,6 @@ Bundled scripts (copied the first time the scripts directory is created):
 
 - `cloudflare-dns` – toggles Cloudflare DNS on/off. Honors `SKIT_SERVICE` for the network service name.
 - `flush-dns` – flushes resolver caches and prints `scutil --dns`.
-- `wifi-power` – toggles Wi-Fi hardware via `networksetup`. Override the interface with `SKIT_WIFI_DEVICE`.
 - `ip-info` – displays IPv4/IPv6 details for each hardware port.
 
 ## Script layout
