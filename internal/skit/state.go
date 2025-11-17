@@ -57,7 +57,7 @@ func (s *StateStore) Load(slug string) (ToggleState, error) {
 	return st, nil
 }
 
-// Record updates the stored state after a successful run.
+// Record updates the stored state after a run, recording both successful and failed runs.
 func (s *StateStore) Record(slug string, action ToggleAction, record RunRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
