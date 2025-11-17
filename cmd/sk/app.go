@@ -53,7 +53,6 @@ type model struct {
 	statusErr     bool
 	running       bool
 	lastResult    *skit.RunResult
-	history       map[string][]skit.RunRecord
 	showDetails   bool
 	pendingDelete *skit.Script
 	pendingEdit   *skit.Script
@@ -73,7 +72,6 @@ func newModel(dir string, scripts []*skit.Script, runner *skit.Runner, store *sk
 		stateStore:  store,
 		search:      search,
 		toggleCache: make(map[string]skit.ToggleAction),
-		history:     make(map[string][]skit.RunRecord),
 	}
 	m.rebuildMatches()
 	m.loadToggleCache()
@@ -110,9 +108,6 @@ func (m *model) loadToggleCache() {
 		if s.Type == skit.ScriptTypeToggle {
 			m.toggleCache[s.Slug] = state.LastAction
 		}
-		if len(state.Runs) > 0 {
-			m.history[s.Slug] = append([]skit.RunRecord(nil), state.Runs...)
-		}
 	}
 }
 
@@ -135,19 +130,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.result.Script != nil {
 			if msg.result.Script.Type == skit.ScriptTypeToggle {
 				m.toggleCache[msg.result.Script.Slug] = msg.result.Action
-			}
-			record := skit.RunRecord{
-				Time:    msg.result.Time,
-				Action:  string(msg.result.Action),
-				Success: msg.result.Err == nil,
-				Output:  msg.result.Output,
-			}
-			if msg.result.Err != nil {
-				record.Err = msg.result.Err.Error()
-			}
-			m.history[msg.result.Script.Slug] = append(m.history[msg.result.Script.Slug], record)
-			if len(m.history[msg.result.Script.Slug]) > 20 {
-				m.history[msg.result.Script.Slug] = m.history[msg.result.Script.Slug][len(m.history[msg.result.Script.Slug])-20:]
 			}
 		}
 		return m, nil
@@ -241,7 +223,7 @@ func (m *model) handleBrowseKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.mode = modeHistory
-		m.setStatus("History mode (↑/↓ navigate, h/esc exit)", false)
+		m.setStatus("History mode (h/esc to exit)", false)
 		return m, nil
 	}
 	prev := m.search.Value()
@@ -630,4 +612,15 @@ func commandPathFor(script *skit.Script, action skit.ToggleAction) (string, erro
 		return "", fmt.Errorf("command is empty")
 	}
 	return cmd.Value, nil
+}
+
+func (m model) historyFor(slug string) []skit.RunRecord {
+	if m.stateStore == nil || slug == "" {
+		return nil
+	}
+	state, err := m.stateStore.Load(slug)
+	if err != nil {
+		return nil
+	}
+	return state.Runs
 }

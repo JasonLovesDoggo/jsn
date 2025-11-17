@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +22,7 @@ func seedScriptsIfEmpty(dest string) {
 		_, _ = os.Stderr.WriteString("skit: failed to copy default scripts: " + err.Error() + "\n")
 	}
 	// ensure scripts are executable if embedded perms were lost
-	filepath.WalkDir(dest, func(path string, d os.DirEntry, err error) error {
+	if err := filepath.WalkDir(dest, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -29,5 +30,7 @@ func seedScriptsIfEmpty(dest string) {
 			_ = os.Chmod(path, 0o755)
 		}
 		return nil
-	})
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "skit: failed to mark scripts executable: %v\n", err)
+	}
 }

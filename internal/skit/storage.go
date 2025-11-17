@@ -180,10 +180,7 @@ func validateExecutable(path string) error {
 	if runtime.GOOS != "windows" {
 		mode := info.Mode()
 		if mode&0111 == 0 {
-			newMode := mode | 0o111
-			if err := os.Chmod(path, newMode); err != nil {
-				return fmt.Errorf("%s is not marked executable", path)
-			}
+			return fmt.Errorf("%s is not marked executable; run chmod +x", path)
 		}
 	}
 	return nil

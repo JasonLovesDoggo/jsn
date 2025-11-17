@@ -1,6 +1,6 @@
 # scriptkit (`sk`)
 
-`sk` is a fuzzy-searchable terminal UI for launching small scripts and toggles. Running `sk` opens a Bubbletea view with a search box, arrow-key navigation, `enter` to run the highlighted script, `ctrl+r` to rerun the previous selection, and `?` to toggle the output pane. Press `→` to enter action mode where `e` edits the manifest, `o` opens the underlying script for the current platform (or lets you choose enable/disable for toggles), `n` creates a new script using a slug prompt, and `d` deletes the selection (with confirmation). Hit `h` to view run history (persisted for toggles, in-memory for others). Scripts live under `SKIT_HOME/scripts` (default `~/.skit/scripts`) while toggle state stays in `SKIT_HOME/state`, so each machine keeps its own toggle history.
+`sk` is a fuzzy-searchable terminal UI for launching small scripts and toggles. Running `sk` opens a Bubbletea view with a search box, arrow-key navigation, `enter` to run the highlighted script, `ctrl+r` to rerun the previous selection, and `?` to toggle the output pane. Press `→` to enter action mode where `e` edits the manifest, `o` opens the underlying script for the current platform (or lets you choose enable/disable for toggles), `n` creates a new script using a slug prompt, and `d` deletes the selection (with confirmation). Hit `h` to view run history. Scripts live under `SKIT_HOME/scripts` (default `~/.skit/scripts`) while toggle state stays in `SKIT_HOME/state`, so each machine keeps its own toggle history.
 
 Optional git syncing:
 

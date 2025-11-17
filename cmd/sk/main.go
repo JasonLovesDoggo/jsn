@@ -21,8 +21,9 @@ func main() {
 		if err := ensureGitRepo(p.ScriptsDir, repoURL, branch); err != nil {
 			log.Fatalf("git sync: %v", err)
 		}
+	} else {
+		seedScriptsIfEmpty(p.ScriptsDir)
 	}
-	seedScriptsIfEmpty(p.ScriptsDir)
 
 	if len(os.Args) > 1 {
 		switch os.Args[1] {

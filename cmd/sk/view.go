@@ -110,7 +110,7 @@ func renderHistoryView(m model) string {
 	var b strings.Builder
 	title := titleStyle.Render(fmt.Sprintf("History · %s", script.Name))
 	b.WriteString(title + "\n")
-	history := m.history[script.Slug]
+	history := m.historyFor(script.Slug)
 	if len(history) == 0 {
 		b.WriteString("No runs recorded for this script yet.\n")
 		b.WriteString("\n" + renderFooter(m) + "\n")
