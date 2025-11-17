@@ -48,7 +48,10 @@ func CopyScripts(dest string) error {
 			return err
 		}
 		if _, err := io.Copy(dst, src); err != nil {
-			dst.Close()
+			closeErr := dst.Close()
+			if closeErr != nil {
+				return fmt.Errorf("copy error: %v; close error: %v", err, closeErr)
+			}
 			return err
 		}
 		return dst.Close()
