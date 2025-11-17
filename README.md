@@ -11,7 +11,8 @@ Various experimental things. This is my experimental monorepo where programs wil
 - **revproxyd** - Basic reverse proxy daemon for forwarding HTTP requests, like `nginx` proxy_pass but minimal
 - **serve** - Static file server with optional verbose logging, like `python3 -m http.server` but faster and easier
 - **typer** - Go code generation tool 
-- **sk** - Scriptkit TUI launcher for fuzzy-searching and running local scripts or toggles defined under `var/skit/scripts`
+- **sk** - Scriptkit: a fuzzy CLI to stash and run personal scripts under `~/.skit/scripts` (git-sync optional).
+
 
 ### Libraries (`pkg/`)
 

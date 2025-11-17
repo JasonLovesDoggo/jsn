@@ -3,7 +3,6 @@ package skit
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -18,24 +17,30 @@ const (
 	ScriptTypeToggle ScriptType = "toggle"
 )
 
-// CommandMap stores per-platform command paths with an optional default.
-type CommandMap map[string]string
+// Command describes either a script path or an inline shell snippet.
+type Command struct {
+	Value  string
+	Inline bool
+}
+
+// CommandMap stores per-platform commands with an optional default.
+type CommandMap map[string]Command
 
 // CommandFor resolves the best command for the provided OS, falling back to "default".
-func (m CommandMap) CommandFor(goos string) (string, error) {
+func (m CommandMap) CommandFor(goos string) (Command, error) {
 	if len(m) == 0 {
-		return "", errors.New("no commands configured")
+		return Command{}, errors.New("no commands configured")
 	}
 	if goos != "" {
 		goos = strings.ToLower(goos)
-		if cmd, ok := m[goos]; ok && cmd != "" {
+		if cmd, ok := m[goos]; ok && cmd.Value != "" {
 			return cmd, nil
 		}
 	}
-	if cmd, ok := m["default"]; ok && cmd != "" {
+	if cmd, ok := m["default"]; ok && cmd.Value != "" {
 		return cmd, nil
 	}
-	return "", fmt.Errorf("no command available for %q (missing %q fallback)", goos, "default")
+	return Command{}, fmt.Errorf("no command available for %q (missing %q fallback)", goos, "default")
 }
 
 // ToggleSpec stores the enable/disable commands for a toggle script.
@@ -76,7 +81,7 @@ func (s *Script) SupportsCurrentPlatform() bool {
 }
 
 // ResolveCommand returns the command path for the script based on type and action.
-func (s *Script) ResolveCommand(action ToggleAction) (string, error) {
+func (s *Script) ResolveCommand(action ToggleAction) (Command, error) {
 	switch s.Type {
 	case ScriptTypeRun:
 		return s.Exec.CommandFor(runtime.GOOS)
@@ -87,10 +92,10 @@ func (s *Script) ResolveCommand(action ToggleAction) (string, error) {
 		case ToggleActionDisable:
 			return s.Toggle.Disable.CommandFor(runtime.GOOS)
 		default:
-			return "", fmt.Errorf("unknown toggle action %q", action)
+			return Command{}, fmt.Errorf("unknown toggle action %q", action)
 		}
 	default:
-		return "", fmt.Errorf("unsupported script type %q", s.Type)
+		return Command{}, fmt.Errorf("unsupported script type %q", s.Type)
 	}
 }
 
@@ -118,15 +123,4 @@ func (s *Script) StateHintOrDefault() string {
 		return s.StateHint
 	}
 	return s.Name
-}
-
-// MakeAbsolute resolves relative command paths against the script dir.
-func (s *Script) MakeAbsolute(cmd string) string {
-	if cmd == "" {
-		return cmd
-	}
-	if filepath.IsAbs(cmd) {
-		return cmd
-	}
-	return filepath.Join(s.Dir, cmd)
 }

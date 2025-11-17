@@ -1,0 +1,7 @@
+name = "Flush DNS"
+description = "Flushes macOS DNS caches and shows the current resolver state."
+tags = ["network", "dns"]
+type = "run"
+
+[exec]
+darwin = "./flush.sh"

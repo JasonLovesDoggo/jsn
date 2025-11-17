@@ -1,0 +1,11 @@
+name = "Cloudflare DNS Toggle"
+description = "Switches between Cloudflare DNS and automatic on macOS."
+tags = ["network", "dns", "macos"]
+type = "toggle"
+state_hint = "dns"
+
+[toggle.enable]
+darwin = "!service=${SKIT_SERVICE:-Wi-Fi}; networksetup -setdnsservers \"$service\" 1.1.1.1 1.0.0.1 && networksetup -setv6dnsservers \"$service\" 2606:4700:4700::1111 2606:4700:4700::1001; dscacheutil -flushcache; killall -HUP mDNSResponder 2>/dev/null || true"
+
+[toggle.disable]
+darwin = "!service=${SKIT_SERVICE:-Wi-Fi}; networksetup -setdnsservers \"$service\" Empty && networksetup -setv6dnsservers \"$service\" Empty; dscacheutil -flushcache; killall -HUP mDNSResponder 2>/dev/null || true"

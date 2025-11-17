@@ -1,0 +1,7 @@
+name = "IP Info"
+description = "Displays local IPv4/IPv6 addresses for common interfaces."
+tags = ["network", "diagnostics"]
+type = "run"
+
+[exec]
+darwin = "./show.sh"

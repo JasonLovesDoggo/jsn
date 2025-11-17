@@ -14,6 +14,16 @@ import (
 type ToggleState struct {
 	LastAction ToggleAction `json:"last_action"`
 	UpdatedAt  time.Time    `json:"updated_at"`
+	Runs       []RunRecord  `json:"runs,omitempty"`
+}
+
+// RunRecord captures metadata for a script execution.
+type RunRecord struct {
+	Time    time.Time `json:"time"`
+	Action  string    `json:"action"`
+	Success bool      `json:"success"`
+	Output  string    `json:"output,omitempty"`
+	Err     string    `json:"err,omitempty"`
 }
 
 // StateStore persists ToggleState records on disk.
@@ -48,10 +58,19 @@ func (s *StateStore) Load(slug string) (ToggleState, error) {
 }
 
 // Record updates the stored state after a successful run.
-func (s *StateStore) Record(slug string, action ToggleAction) error {
+func (s *StateStore) Record(slug string, action ToggleAction, record RunRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state := ToggleState{LastAction: action, UpdatedAt: time.Now()}
+	if data, err := os.ReadFile(s.pathFor(slug)); err == nil {
+		_ = json.Unmarshal(data, &state)
+		state.LastAction = action
+		state.UpdatedAt = time.Now()
+	}
+	state.Runs = append(state.Runs, record)
+	if len(state.Runs) > 20 {
+		state.Runs = state.Runs[len(state.Runs)-20:]
+	}
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return err

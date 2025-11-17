@@ -89,17 +89,24 @@ func TestDisplayName(t *testing.T) {
 func TestCommandPathFor(t *testing.T) {
 	run := &skit.Script{
 		Type: skit.ScriptTypeRun,
-		Exec: skit.CommandMap{"default": "/tmp/run.sh"},
+		Exec: skit.CommandMap{"default": skit.Command{Value: "/tmp/run.sh"}},
 	}
 	if path, err := commandPathFor(run, ""); err != nil || path != "/tmp/run.sh" {
 		t.Fatalf("run commandPathFor: %v %s", err, path)
+	}
+	runInline := &skit.Script{
+		Type: skit.ScriptTypeRun,
+		Exec: skit.CommandMap{"default": skit.Command{Value: "echo hi", Inline: true}},
+	}
+	if _, err := commandPathFor(runInline, ""); err == nil {
+		t.Fatalf("expected error for inline command editing")
 	}
 
 	tog := &skit.Script{
 		Type: skit.ScriptTypeToggle,
 		Toggle: skit.ToggleSpec{
-			Enable:  skit.CommandMap{"default": "/tmp/enable.sh"},
-			Disable: skit.CommandMap{"default": "/tmp/disable.sh"},
+			Enable:  skit.CommandMap{"default": skit.Command{Value: "/tmp/enable.sh"}},
+			Disable: skit.CommandMap{"default": skit.Command{Value: "/tmp/disable.sh"}},
 		},
 	}
 	if _, err := commandPathFor(tog, ""); err == nil {
