@@ -1,77 +1,51 @@
 package lexer
 
-import (
-	"fmt"
-)
+import "fmt"
 
-func isAlpha(ch byte) bool {
-	return ch >= 'a' && ch <= 'z'
-}
-
-func lexKeyword(input string, i int) (Token, int, error) {
-	start := i
-	for i < len(input) && isAlpha(input[i]) {
-		i++
-	}
-
-	word := input[start:i]
-
-	switch word {
-	case "true", "false":
-		return Token{Type: TokBool, Value: word}, i, nil
-	case "null":
-		return Token{Type: TokNull}, i, nil
-	}
-
-	return Token{}, 0, fmt.Errorf("unexpected identifier: %s", word)
-}
-
-func lexNumber(input string, i int) (Token, int) {
+func scanNumberOffsets(input string, i, n int) (Token, int) {
 	start := i
 
 	if input[i] == '-' {
 		i++
 	}
 
-	for i < len(input) && isDigit(input[i]) {
+	for i < n && input[i] >= '0' && input[i] <= '9' {
 		i++
 	}
 
-	if i < len(input) && input[i] == '.' {
+	if i < n && input[i] == '.' {
 		i++
-		for i < len(input) && isDigit(input[i]) {
+		for i < n && input[i] >= '0' && input[i] <= '9' {
 			i++
 		}
 	}
 
-	if i < len(input) && (input[i] == 'e' || input[i] == 'E') {
+	if i < n && (input[i] == 'e' || input[i] == 'E') {
 		i++
-		if i < len(input) && (input[i] == '+' || input[i] == '-') {
+		if i < n && (input[i] == '+' || input[i] == '-') {
 			i++
 		}
-		for i < len(input) && isDigit(input[i]) {
+		for i < n && input[i] >= '0' && input[i] <= '9' {
 			i++
 		}
 	}
 
-	return Token{Type: TokNumber, Value: input[start:i]}, i
+	return Token{
+		Type:  TokNumber,
+		Start: start,
+		End:   i,
+	}, i
 }
 
-func lexString(input string, i int) (Token, int, error) {
-	i++ // skip opening "
-	start := i
-	var chars []byte
-
-	for i < len(input) {
-		// closing quote not escaped
-		if input[i] == '"' && (i == start || input[i-1] != '\\') {
-			value := string(chars)
-			return Token{Type: TokString, Value: value}, i + 1, nil
-		}
-
-		chars = append(chars, input[i])
-		i++
+func scanKeywordOffsets(input string, i, n int) (Token, int, error) {
+	if i+4 <= n && input[i:i+4] == "true" {
+		return Token{Type: TokBool, Start: i, End: i + 4}, i + 4, nil
 	}
-
-	return Token{}, 0, fmt.Errorf("unterminated string literal")
+	if i+5 <= n && input[i:i+5] == "false" {
+		return Token{Type: TokBool, Start: i, End: i + 5}, i + 5, nil
+	}
+	if i+4 <= n && input[i:i+4] == "null" {
+		return Token{Type: TokNull, Start: i, End: i + 4}, i + 4, nil
+	}
+	return Token{}, 0, fmt.Errorf("unexpected identifier")
 }

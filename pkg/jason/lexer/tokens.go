@@ -18,7 +18,8 @@ const (
 
 type Token struct {
 	Type  TokenType
-	Value string
+	Start int
+	End   int
 }
 
 func (t Token) String() string {
@@ -36,11 +37,11 @@ func (t Token) String() string {
 	case TokColon:
 		return "TokColon"
 	case TokString:
-		return "TokString(" + t.Value + ")"
+		return "TokString[" + string(rune(t.Start)) + "," + string(rune(t.End)) + "]"
 	case TokNumber:
-		return "TokNumber(" + t.Value + ")"
+		return "TokNumber[" + string(rune(t.Start)) + "," + string(rune(t.End)) + "]"
 	case TokBool:
-		return "TokBool(" + t.Value + ")"
+		return "TokBool" + "[" + string(rune(t.Start)) + "," + string(rune(t.End)) + "]"
 	case TokNull:
 		return "TokNull"
 	case TokEOF:
@@ -49,3 +50,5 @@ func (t Token) String() string {
 		return "Unknown"
 	}
 }
+
+var symbolTable [256]TokenType
