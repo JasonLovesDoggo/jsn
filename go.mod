@@ -13,10 +13,13 @@ require (
 	github.com/facebookgo/ensure v0.0.0-20200202191622-63f1cf65ac4c
 	github.com/go-vgo/robotgo v0.110.8
 	github.com/joho/godotenv v1.5.1
+	github.com/json-iterator/go v1.1.12
 	github.com/posener/complete v1.2.3
 	github.com/prometheus/client_golang v1.23.2
 	github.com/sahilm/fuzzy v0.1.1
+	github.com/segmentio/encoding v0.5.3
 	github.com/stretchr/testify v1.11.1
+	github.com/tidwall/gjson v1.18.0
 	go4.org v0.0.0-20230225012048-214862532bf5
 	golang.org/x/sys v0.38.0
 )
@@ -57,6 +60,8 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
@@ -72,8 +77,11 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/robotn/xgb v0.10.0 // indirect
 	github.com/robotn/xgbutil v0.10.0 // indirect
+	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.10 // indirect
 	github.com/tailscale/win v0.0.0-20250627215312-f4da2b8ee071 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/vcaesar/gops v0.41.0 // indirect
