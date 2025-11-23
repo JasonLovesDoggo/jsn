@@ -25,8 +25,29 @@ var (
 const maxVisibleRows = 10
 
 func (m model) View() string {
+	if m.mode == modeHistory {
+		return renderHistoryView(m)
+	}
+	return renderBrowseView(m)
+}
+
+func windowStart(cursor, total, window int) int {
+	if total <= window {
+		return 0
+	}
+	start := cursor - window/2
+	if start < 0 {
+		start = 0
+	}
+	if start+window > total {
+		start = total - window
+	}
+	return start
+}
+
+func renderBrowseView(m model) string {
 	if len(m.scripts) == 0 {
-		return "scriptkit\n\nNo scripts found. Create one under var/skit/scripts/<slug>/skit.toml\n"
+		return fmt.Sprintf("scriptkit\n\nNo scripts found. Add one under %s/<slug>/skit.toml\n", m.scriptsDir)
 	}
 	var b strings.Builder
 	header := titleStyle.Render("scriptkit")
@@ -81,18 +102,71 @@ func (m model) View() string {
 	return b.String()
 }
 
-func windowStart(cursor, total, window int) int {
-	if total <= window {
-		return 0
+func renderHistoryView(m model) string {
+	script := m.currentScript()
+	if script == nil {
+		return "History\n\nNo script selected."
 	}
-	start := cursor - window/2
+	var b strings.Builder
+	title := titleStyle.Render(fmt.Sprintf("History · %s", script.Name))
+	b.WriteString(title + "\n")
+	history := m.historyFor(script.Slug)
+	historyLen := len(history)
+	if len(history) == 0 {
+		b.WriteString("No runs recorded for this script yet.\n")
+		b.WriteString("\n" + renderFooter(m) + "\n")
+		return b.String()
+	}
+	if m.historyIdx >= historyLen {
+		b.WriteString("No earlier runs.\n\n")
+		b.WriteString(renderFooter(m) + "\n")
+		return b.String()
+	}
+	maxRows := 15
+	start := historyLen - maxRows
 	if start < 0 {
 		start = 0
 	}
-	if start+window > total {
-		start = total - window
+	highlight := historyLen - 1 - m.historyIdx
+	if highlight < 0 {
+		highlight = 0
 	}
-	return start
+	if highlight < start {
+		start = highlight
+	} else if highlight >= start+maxRows {
+		start = highlight - maxRows + 1
+	}
+	if start < 0 {
+		start = 0
+	}
+	end := start + maxRows
+	if end > historyLen {
+		end = historyLen
+	}
+	for i := start; i < end; i++ {
+		run := history[i]
+		status := statusOK.Render("OK")
+		if !run.Success {
+			status = statusErr.Render("ERR")
+		}
+		prefix := " "
+		if i == highlight {
+			prefix = selectedStyle.Render("›")
+		}
+		b.WriteString(fmt.Sprintf("%s %s %s (%s)\n", prefix, run.Time.Format("2006-01-02 15:04:05"), status, strings.ToUpper(run.Action)))
+		if run.Output != "" {
+			lines := strings.Split(strings.TrimSpace(run.Output), "\n")
+			for _, line := range lines {
+				b.WriteString("  " + line + "\n")
+			}
+		}
+		if run.Err != "" {
+			b.WriteString("  err: " + run.Err + "\n")
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString(renderFooter(m) + "\n")
+	return b.String()
 }
 
 func renderScriptLine(s *skit.Script, selected bool, lastAction skit.ToggleAction) string {
@@ -132,8 +206,10 @@ func renderFooter(m model) string {
 		return footerStyle.Render("Delete? y/n (Esc cancels)")
 	case modeChooseCommand:
 		return footerStyle.Render("Toggle edit: e enable  d disable  Esc cancel")
+	case modeHistory:
+		return footerStyle.Render("History: h/Esc close")
 	default:
-		return footerStyle.Render("↑/↓ move  enter run  ctrl+r rerun  → actions  ? output  ctrl+c quit")
+		return footerStyle.Render("↑/↓ move  enter run  ctrl+r rerun  h history  → actions  ? output  ctrl+c quit")
 	}
 }
 
@@ -162,13 +238,7 @@ func renderDetails(res *skit.RunResult) string {
 		b.WriteString("(no output)")
 		return b.String()
 	}
-	lines := strings.Split(out, "\n")
-	const maxLines = 10
-	if len(lines) > maxLines {
-		lines = lines[len(lines)-maxLines:]
-		b.WriteString(fmt.Sprintf("…showing last %d lines\n", maxLines))
-	}
-	for _, line := range lines {
+	for _, line := range strings.Split(out, "\n") {
 		b.WriteString("  " + line + "\n")
 	}
 	return strings.TrimSuffix(b.String(), "\n")

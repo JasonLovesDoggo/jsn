@@ -1,0 +1,7 @@
+name = "Hello There"
+description = "Demonstrates a simple one-off script."
+tags = ["example"]
+type = "run"
+
+[exec]
+default = "./hello.sh"

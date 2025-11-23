@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadScriptsRun(t *testing.T) {
@@ -12,16 +13,12 @@ func TestLoadScriptsRun(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(dir, "script.sh"), "#!/bin/sh\necho hi\n")
-	if err := os.Chmod(filepath.Join(dir, "script.sh"), 0o755); err != nil {
-		t.Fatal(err)
-	}
 	cfg := `
 name = "Example"
 type = "run"
 
 [exec]
-default = "./script.sh"
+default = "!echo hi"
 `
 	writeFile(t, filepath.Join(dir, ConfigFileName), cfg)
 	scripts, err := LoadScripts(root)
@@ -34,8 +31,12 @@ default = "./script.sh"
 	if scripts[0].Name != "Example" {
 		t.Fatalf("unexpected name %q", scripts[0].Name)
 	}
-	if _, err := scripts[0].Exec.CommandFor("plan9"); err != nil {
+	cmd, err := scripts[0].Exec.CommandFor("plan9")
+	if err != nil {
 		t.Fatalf("command for plan9 should fallback to default: %v", err)
+	}
+	if !cmd.Inline {
+		t.Fatalf("expected inline command")
 	}
 }
 
@@ -48,7 +49,8 @@ func TestStateStore(t *testing.T) {
 	if next := store.NextAction("dns"); next != ToggleActionEnable {
 		t.Fatalf("expected enable, got %s", next)
 	}
-	if err := store.Record("dns", ToggleActionEnable); err != nil {
+	record := RunRecord{Time: time.Now(), Action: string(ToggleActionEnable), Success: true}
+	if err := store.Record("dns", ToggleActionEnable, record); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 	if next := store.NextAction("dns"); next != ToggleActionDisable {

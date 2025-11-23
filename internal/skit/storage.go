@@ -142,15 +142,29 @@ func buildCommandMap(dir string, raw map[string]string) (CommandMap, error) {
 		return nil, errors.New("command map is empty")
 	}
 	cmds := make(CommandMap, len(raw))
-	for key, path := range raw {
-		resolved := path
-		if !filepath.IsAbs(path) {
-			resolved = filepath.Join(dir, path)
+	for key, value := range raw {
+		val := strings.TrimSpace(value)
+		if val == "" {
+			return nil, fmt.Errorf("%s: command is empty", key)
 		}
-		if err := validateExecutable(resolved); err != nil {
-			return nil, fmt.Errorf("%s: %w", key, err)
+		command := Command{}
+		if strings.HasPrefix(val, "!") {
+			command.Inline = true
+			command.Value = strings.TrimSpace(strings.TrimPrefix(val, "!"))
+			if command.Value == "" {
+				return nil, fmt.Errorf("%s: inline command is empty", key)
+			}
+		} else {
+			resolved := val
+			if !filepath.IsAbs(val) {
+				resolved = filepath.Join(dir, val)
+			}
+			if err := validateExecutable(resolved); err != nil {
+				return nil, fmt.Errorf("%s: %w", key, err)
+			}
+			command.Value = resolved
 		}
-		cmds[strings.ToLower(key)] = resolved
+		cmds[strings.ToLower(key)] = command
 	}
 	return cmds, nil
 }
@@ -166,7 +180,7 @@ func validateExecutable(path string) error {
 	if runtime.GOOS != "windows" {
 		mode := info.Mode()
 		if mode&0111 == 0 {
-			return fmt.Errorf("%s is not marked executable", path)
+			return fmt.Errorf("%s is not marked executable; run chmod +x", path)
 		}
 	}
 	return nil

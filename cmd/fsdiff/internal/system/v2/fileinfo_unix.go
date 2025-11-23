@@ -3,6 +3,8 @@
 package v2
 
 import (
+	"errors"
+	"fmt"
 	"io/fs"
 	"syscall"
 
@@ -20,6 +22,7 @@ const (
 const (
 	FS_IMMUTABLE_FL = 0x00000010 // Immutable file
 	FS_APPEND_FL    = 0x00000020 // Append only
+	FS_IOC_GETFLAGS = 0x80086601
 )
 
 func GetFileInfo(path string, info fs.FileInfo) *FileInfo {
@@ -153,12 +156,20 @@ func listXattr(path string) []string {
 func getFileAttrs(path string) (uint32, error) {
 	fd, err := unix.Open(path, unix.O_RDONLY, 0)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("open %s: %w", path, err)
 	}
 	defer unix.Close(fd)
 
-	attrs, err := unix.IoctlGetUint32(fd, unix.FS_IOC_GETFLAGS)
-	return attrs, err
+	val, err := unix.IoctlGetInt(fd, FS_IOC_GETFLAGS)
+	if err != nil {
+		// FS doesn't support flags
+		if errors.Is(err, unix.ENOTTY) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("ioctl getflags: %w", err)
+	}
+
+	return uint32(val), nil
 }
 
 // getAllXattrs efficiently retrieves all extended attributes in one pass

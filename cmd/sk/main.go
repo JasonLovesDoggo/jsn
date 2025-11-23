@@ -1,8 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
-	"path/filepath"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -10,24 +11,46 @@ import (
 )
 
 func main() {
-	scriptsDir, err := filepath.Abs(skit.DefaultScriptsDir)
+	p, err := resolvePaths()
 	if err != nil {
 		log.Fatal(err)
 	}
-	stateDir, err := filepath.Abs(skit.DefaultStateDir)
+	repoURL := os.Getenv("SKIT_SYNC_REPO")
+	branch := os.Getenv("SKIT_SYNC_BRANCH")
+	if repoURL != "" {
+		if err := ensureGitRepo(p.ScriptsDir, repoURL, branch); err != nil {
+			log.Fatalf("git sync: %v", err)
+		}
+	} else {
+		seedScriptsIfEmpty(p.ScriptsDir)
+	}
+
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "sync":
+			if repoURL == "" {
+				log.Fatal("SKIT_SYNC_REPO must be set to use `sk sync`")
+			}
+			if err := gitSyncChanges(p.ScriptsDir, branch); err != nil {
+				log.Fatalf("git sync: %v", err)
+			}
+			fmt.Println("Scripts synced with origin.")
+			return
+		default:
+			log.Fatalf("unknown command %q", os.Args[1])
+		}
+	}
+
+	scripts, err := skit.LoadScripts(p.ScriptsDir)
 	if err != nil {
 		log.Fatal(err)
 	}
-	scripts, err := skit.LoadScripts(scriptsDir)
+	stateStore, err := skit.NewStateStore(p.StateDir)
 	if err != nil {
 		log.Fatal(err)
 	}
-	stateStore, err := skit.NewStateStore(stateDir)
-	if err != nil {
-		log.Fatal(err)
-	}
-	runner := skit.NewRunner(stateStore)
-	m := newModel(scriptsDir, scripts, runner, stateStore)
+
+	m := newModel(p.ScriptsDir, scripts, skit.NewRunner(stateStore), stateStore)
 	if err := tea.NewProgram(m, tea.WithAltScreen()).Start(); err != nil {
 		log.Fatal(err)
 	}

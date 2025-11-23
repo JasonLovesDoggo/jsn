@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestStateStoreDelete(t *testing.T) {
@@ -12,7 +13,8 @@ func TestStateStoreDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStateStore: %v", err)
 	}
-	if err := store.Record("demo", ToggleActionEnable); err != nil {
+	record := RunRecord{Time: time.Now(), Action: string(ToggleActionEnable), Success: true}
+	if err := store.Record("demo", ToggleActionEnable, record); err != nil {
 		t.Fatalf("Record: %v", err)
 	}
 	path := filepath.Join(dir, "demo.json")

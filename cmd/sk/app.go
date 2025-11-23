@@ -25,6 +25,7 @@ const (
 	modeNew
 	modeConfirmDelete
 	modeChooseCommand
+	modeHistory
 )
 
 type runMsg struct {
@@ -43,6 +44,7 @@ type model struct {
 	scripts       []*skit.Script
 	matches       []int
 	cursor        int
+	historyIdx    int
 	runner        *skit.Runner
 	stateStore    *skit.StateStore
 	toggleCache   map[string]skit.ToggleAction
@@ -100,14 +102,13 @@ func (m *model) loadToggleCache() {
 		return
 	}
 	for _, s := range m.scripts {
-		if s.Type != skit.ScriptTypeToggle {
-			continue
-		}
 		state, err := m.stateStore.Load(s.Slug)
 		if err != nil {
 			continue
 		}
-		m.toggleCache[s.Slug] = state.LastAction
+		if s.Type == skit.ScriptTypeToggle {
+			m.toggleCache[s.Slug] = state.LastAction
+		}
 	}
 }
 
@@ -127,8 +128,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.setStatus(fmt.Sprintf("Finished in %s", msg.result.Duration.Round(10*time.Millisecond)), false)
 		}
-		if msg.result.Script != nil && msg.result.Script.Type == skit.ScriptTypeToggle {
-			m.toggleCache[msg.result.Script.Slug] = msg.result.Action
+		if msg.result.Script != nil {
+			if msg.result.Script.Type == skit.ScriptTypeToggle {
+				m.toggleCache[msg.result.Script.Slug] = msg.result.Action
+			}
 		}
 		return m, nil
 	case scriptsUpdatedMsg:
@@ -171,6 +174,8 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleNewKey(msg)
 	case modeConfirmDelete:
 		return m.handleDeleteKey(msg)
+	case modeHistory:
+		return m.handleHistoryKey(msg)
 	case modeChooseCommand:
 		return m.handleCommandChoiceKey(msg)
 	default:
@@ -184,7 +189,7 @@ func (m *model) handleBrowseKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "right", "tab":
 		m.mode = modeAction
-		m.setStatus("Action mode: e edit, n new, d delete, ← to exit", false)
+		m.setStatus("Action mode: e edit manifest, o edit script, n new, d delete, ← to exit", false)
 		return m, nil
 	case "up", "k":
 		if m.cursor > 0 {
@@ -213,6 +218,13 @@ func (m *model) handleBrowseKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.startRun(script)
 	case "?":
 		m.showDetails = !m.showDetails
+		return m, nil
+	case "h":
+		if m.currentScript() == nil {
+			return m, nil
+		}
+		m.mode = modeHistory
+		m.setStatus("History mode (h/esc to exit)", false)
 		return m, nil
 	}
 	prev := m.search.Value()
@@ -281,7 +293,7 @@ func (m *model) handleNewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = modeAction
-		m.setStatus("Action mode: e edit, n new, d delete, ← to exit", false)
+		m.setStatus("Action mode: e edit manifest, o edit script, n new, d delete, ← to exit", false)
 		return m, nil
 	case "enter":
 		slug := sanitizeSlug(m.prompt.Value())
@@ -335,6 +347,29 @@ func (m *model) handleCommandChoiceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pendingEdit = nil
 		m.mode = modeBrowse
 		m.setStatus("Browse mode", false)
+		return m, nil
+	default:
+		return m, nil
+	}
+}
+
+func (m *model) handleHistoryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	historyLen := len(m.historyForSlug())
+	switch msg.String() {
+	case "esc", "h":
+		m.mode = modeBrowse
+		m.historyIdx = 0
+		m.setStatus("Browse mode", false)
+		return m, nil
+	case "up", "k":
+		if m.historyIdx < historyLen {
+			m.historyIdx++
+		}
+		return m, nil
+	case "down", "j":
+		if m.historyIdx > 0 {
+			m.historyIdx--
+		}
 		return m, nil
 	default:
 		return m, nil
@@ -551,11 +586,8 @@ func (s scriptSource) String(i int) string {
 		return ""
 	}
 	entry := s.scripts[i]
-	var tags string
-	if len(entry.Tags) > 0 {
-		tags = strings.Join(entry.Tags, " ")
-	}
-	return strings.ToLower(strings.TrimSpace(entry.Name + " " + entry.Description + " " + tags))
+	fields := []string{entry.Name, entry.Slug, strings.Join(entry.Tags, " ")}
+	return strings.ToLower(strings.TrimSpace(strings.Join(fields, " ")))
 }
 
 type commandEditMsg struct {
@@ -572,15 +604,38 @@ func editCommandFile(path string) tea.Cmd {
 }
 
 func commandPathFor(script *skit.Script, action skit.ToggleAction) (string, error) {
-	switch script.Type {
-	case skit.ScriptTypeRun:
-		return script.ResolveCommand("")
-	case skit.ScriptTypeToggle:
-		if action == "" {
-			return "", fmt.Errorf("choose enable or disable")
-		}
-		return script.ResolveCommand(action)
-	default:
-		return "", fmt.Errorf("unsupported script type %q", script.Type)
+	cmd, err := script.ResolveCommand(action)
+	if err != nil {
+		return "", err
 	}
+	if cmd.Inline {
+		return "", fmt.Errorf("inline commands must be edited in the manifest")
+	}
+	if cmd.Value == "" {
+		return "", fmt.Errorf("command is empty")
+	}
+	return cmd.Value, nil
+}
+
+func (m model) historyFor(slug string) []skit.RunRecord {
+	if m.stateStore == nil || slug == "" {
+		return nil
+	}
+	state, err := m.stateStore.Load(slug)
+	if err != nil {
+		return nil
+	}
+	return state.Runs
+}
+
+func (m model) historyForSlug() []skit.RunRecord {
+	script := m.currentScript()
+	if script == nil {
+		return nil
+	}
+	h := m.historyFor(script.Slug)
+	if m.historyIdx >= len(h) {
+		return h
+	}
+	return h
 }
