@@ -11,6 +11,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/dave/jennifer v1.7.1
 	github.com/facebookgo/ensure v0.0.0-20200202191622-63f1cf65ac4c
+	github.com/gaissmai/bart v0.26.0
 	github.com/go-vgo/robotgo v0.110.8
 	github.com/joho/godotenv v1.5.1
 	github.com/json-iterator/go v1.1.12
