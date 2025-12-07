@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/term"
 	"pkg.jsn.cam/jsn/internal"
 	"pkg.jsn.cam/jsn/pkg/humantype"
 )
@@ -33,7 +32,7 @@ func main() {
 	if flag.NArg() > 0 {
 		input = flag.Arg(0)
 	} else {
-		if term.IsTerminal(int(os.Stdin.Fd())) {
+		if stat, _ := os.Stdin.Stat(); (stat.Mode() & os.ModeCharDevice) != 0 {
 			fmt.Fprintln(os.Stderr, "Enter text to type, then press Cmd+D (Ctrl+D on Linux) when done:")
 		}
 		data, err := io.ReadAll(bufio.NewReader(os.Stdin))

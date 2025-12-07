@@ -22,7 +22,6 @@ require (
 	github.com/tidwall/gjson v1.18.0
 	go4.org v0.0.0-20230225012048-214862532bf5
 	golang.org/x/sys v0.38.0
-	golang.org/x/term v0.37.0
 )
 
 require (
