@@ -2,7 +2,7 @@ yeet.setenv("KO_DOCKER_REPO", "ghcr.io/jasonlovesdoggo/jsn");
 yeet.setenv("SOURCE_DATE_EPOCH", $`git log -1 --format='%ct'`.trim());
 yeet.setenv("VERSION", git.tag());
 
-programs = ["serve", "httpdebug", "pkg.jsn.cam", "backoff", "netpack"].join(",");
+programs = ["serve", "httpdebug", "pkg.jsn.cam", "backoff", "cidrpack"].join(",");
 
 $`ko build --platform=all --base-import-paths --tags=latest,${git.tag()} ./cmd/{${programs}}`;
 
@@ -76,7 +76,7 @@ const pkgs = [];
 
     pkgs.push(
       method.build({
-        name: "netpack",
+        name: "cidrpack",
         description: "A simple tool to merge and minimize overlapping CIDR blocks",
         homepage: "https://jsn.cam",
         license: "aGPLv3",
@@ -87,7 +87,7 @@ const pkgs = [];
         },
 
         build: ({ bin }) => {
-          $`go build -o ${bin}/netpack -ldflags '-s -w -extldflags "-static" -X "pkg.jsn.cam/jsn.Version=${git.tag()}"' ./cmd/netpack`;
+          $`go build -o ${bin}/cidrpack -ldflags '-s -w -extldflags "-static" -X "pkg.jsn.cam/jsn.Version=${git.tag()}"' ./cmd/cidrpack`;
         },
       }),
     );

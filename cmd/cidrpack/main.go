@@ -16,10 +16,10 @@ func main() {
 	flag.Parse()
 
 	if *help {
-		fmt.Fprintln(os.Stderr, "netpack - optimize CIDR blocks")
+		fmt.Fprintln(os.Stderr, "cidrpack - optimize CIDR blocks")
 		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "usage: netpack < cidrs.txt")
-		fmt.Fprintln(os.Stderr, "       echo '10.0.0.0/24 10.0.1.0/24' | netpack")
+		fmt.Fprintln(os.Stderr, "usage: cidrpack < cidrs.txt")
+		fmt.Fprintln(os.Stderr, "       echo '10.0.0.0/24 10.0.1.0/24' | cidrpack")
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "reads CIDRs from stdin (space/newline separated)")
 		fmt.Fprintln(os.Stderr, "outputs minimized non-overlapping CIDR list")

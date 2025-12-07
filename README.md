@@ -10,8 +10,15 @@ Various experimental things. This is my experimental monorepo where programs wil
 - **portkill** - Simple utility to kill processes by port number, like `lsof -ti:PORT | xargs kill` but simpler
 - **revproxyd** - Basic reverse proxy daemon for forwarding HTTP requests, like `nginx` proxy_pass but minimal
 - **serve** - Static file server with optional verbose logging, like `python3 -m http.server` but faster and easier
-- **typer** - Go code generation tool 
+- **backoff** - Retry commands with exponential backoff, like a simple `retry` wrapper for flaky commands
+- **cidrpack** - A simple CLI to merge and minimize overlapping CIDR blocks
+- **typer** - Go code generation tool
 - **sk** - Scriptkit: a fuzzy CLI to stash and run personal scripts under `~/.skit/scripts` (git-sync optional).
+- **jason** - (TOY) JSON lexer CLI for tokenizing JSON files
+
+### Assorted Tools (`cmd/assorted/`)
+
+- **openrouter/tpsviz** - TUI for analyzing OpenRouter activity export logs and computing TPS metrics
 
 
 ### Libraries (`pkg/`)
