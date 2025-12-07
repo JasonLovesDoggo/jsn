@@ -49,3 +49,42 @@ func scanKeywordOffsets(input string, i, n int) (Token, int, error) {
 	}
 	return Token{}, 0, fmt.Errorf("unexpected identifier")
 }
+
+// faster, split loop, avoids checking j-1 every iteration
+func scanString(input string, i, n int) (int, error) {
+	// start AFTER opening quote
+	j := i + 1
+
+	for j < n {
+		c := input[j]
+
+		if c == '"' {
+			// fast exit if no escape before quote
+			if input[j-1] != '\\' {
+				return j + 1, nil
+			}
+
+			// if escaped, fall through to slow path
+			break
+		}
+
+		// fast forward until potential special char
+		if c != '\\' {
+			j++
+			continue
+		}
+
+		// escape found — slow path
+		break
+	}
+
+	// slower full scan for escapes + unicode
+	for j < n {
+		if input[j] == '"' && input[j-1] != '\\' {
+			return j + 1, nil
+		}
+		j++
+	}
+
+	return 0, fmt.Errorf("unterminated string")
+}
