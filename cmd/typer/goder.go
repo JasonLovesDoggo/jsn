@@ -14,10 +14,7 @@ import (
 	"github.com/dave/jennifer/jen"
 	"github.com/go-vgo/robotgo"
 	"pkg.jsn.cam/jsn/internal"
-
-	_ "github.com/go-vgo/robotgo/base"  // Blank import for robotgo C sources
-	_ "github.com/go-vgo/robotgo/key"   // Blank import for robotgo C sources
-	_ "github.com/go-vgo/robotgo/mouse" // Blank import for robotgo C sources
+	"pkg.jsn.cam/jsn/pkg/humantype"
 )
 
 // initLogger initializes the logging system to output to the console.
@@ -44,55 +41,6 @@ var goKeywords = []string{
 	"err", "ctx", "req", "res", "data", "result", "val", "key", "idx", "item", "user",
 	"id", "name", "config", "server", "client", "response", "request", "wg", "mu", "ch",
 	"done", "quit", "stop", "handle", "query", "route", "model", "util", "helper", "service",
-}
-
-var nearbyKeys = map[rune][]rune{
-	'q': {'w', 'a', 's'}, 'w': {'q', 'e', 's', 'd', 'a'}, 'e': {'w', 'r', 'd', 'f', 's'}, 'r': {'e', 't', 'f', 'g', 'd'},
-	't': {'r', 'y', 'g', 'h', 'f'}, 'y': {'t', 'u', 'h', 'j', 'g'}, 'u': {'y', 'i', 'j', 'k', 'h'}, 'i': {'u', 'o', 'k', 'l', 'j'},
-	'o': {'i', 'p', 'l', ';', 'k'}, 'p': {'o', '[', ';', ':', 'l'}, 'a': {'q', 'w', 's', 'z', 'x'}, 's': {'a', 'd', 'w', 'e', 'x', 'z', 'c'},
-	'd': {'s', 'f', 'e', 'r', 'x', 'c', 'v'}, 'f': {'d', 'g', 'r', 't', 'c', 'v', 'b'}, 'g': {'f', 'h', 't', 'y', 'v', 'b', 'n'},
-	'h': {'g', 'j', 'y', 'u', 'b', 'n', 'm'}, 'j': {'h', 'k', 'u', 'i', 'n', 'm', ','}, 'k': {'j', 'l', 'i', 'o', 'm', ',', '.'},
-	'l': {'k', ';', 'o', 'p', ',', '.', '/'}, 'z': {'a', 's', 'x'}, 'x': {'z', 'c', 's', 'd'}, 'c': {'x', 'v', 'd', 'f'},
-	'v': {'c', 'b', 'f', 'g'}, 'b': {'v', 'n', 'g', 'h'}, 'n': {'b', 'm', 'h', 'j'}, 'm': {'n', ',', 'j', 'k'},
-	' ': {' ', ' ', 'c', 'v', 'b', 'n', 'm'},
-}
-
-func humanType(text string) {
-	logMessage("humanType: Starting to type text of length ", len(text))
-	defer func() {
-		if r := recover(); r != nil {
-			logMessage("PANIC while typing: ", r, ". Text (first 50 chars): ", text[:min(50, len(text))])
-		}
-	}()
-
-	for _, char := range text {
-		if rand.Intn(100) < 2 {
-			if near, ok := nearbyKeys[unicode.ToLower(char)]; ok && len(near) > 0 {
-				wrongChar := near[rand.Intn(len(near))]
-				robotgo.KeyTap(string(wrongChar))
-				time.Sleep(time.Duration(rand.Intn(40)+60) * time.Millisecond)
-				robotgo.KeyTap("backspace")
-				time.Sleep(time.Duration(rand.Intn(20)+40) * time.Millisecond)
-			}
-		}
-		robotgo.KeyTap(string(char))
-		if rand.Intn(200) < 1 && char != ' ' && char != '\n' {
-			time.Sleep(time.Duration(rand.Intn(80)+70) * time.Millisecond)
-			robotgo.KeyTap("backspace")
-			time.Sleep(time.Duration(rand.Intn(40)+50) * time.Millisecond)
-			robotgo.KeyTap(string(char))
-		}
-		delay := rand.Intn(90) + 30
-		if char == ' ' {
-			delay += rand.Intn(70)
-		} else if char == '\n' {
-			delay += rand.Intn(130) + 70
-		}
-		time.Sleep(time.Duration(delay) * time.Millisecond)
-	}
-	if rand.Intn(100) < 20 {
-		time.Sleep(time.Duration(rand.Intn(200)+100) * time.Millisecond)
-	}
 }
 
 // sanitizeName creates a valid Go identifier from a keyword and prefix.
@@ -528,7 +476,7 @@ func generateCodeInBursts(maxIntervalBetweenBursts, maxBurstDuration, intervalBe
 		for time.Now().Before(endTime) {
 			burstCodeBlockCount++
 			codeToType := generateRandomGoCode()
-			humanType(codeToType)
+			humantype.TypeDefault(codeToType)
 
 			interCodePauseBase := intervalBetweenTyping
 			if interCodePauseBase < 500*time.Millisecond {

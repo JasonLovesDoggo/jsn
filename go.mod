@@ -22,6 +22,7 @@ require (
 	github.com/tidwall/gjson v1.18.0
 	go4.org v0.0.0-20230225012048-214862532bf5
 	golang.org/x/sys v0.38.0
+	golang.org/x/term v0.37.0
 )
 
 require (
@@ -67,9 +68,7 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/natefinch/atomic v1.0.1 // indirect
-	github.com/otiai10/gosseract v2.2.1+incompatible // indirect
 	github.com/otiai10/gosseract/v2 v2.4.1 // indirect
-	github.com/otiai10/mint v1.6.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
