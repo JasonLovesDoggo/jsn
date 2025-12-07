@@ -2,7 +2,7 @@ yeet.setenv("KO_DOCKER_REPO", "ghcr.io/jasonlovesdoggo/jsn");
 yeet.setenv("SOURCE_DATE_EPOCH", $`git log -1 --format='%ct'`.trim());
 yeet.setenv("VERSION", git.tag());
 
-programs = ["serve", "httpdebug", "pkg.jsn.cam", "backoff", "cidrpack", "typein"].join(",");
+programs = ["serve", "httpdebug", "pkg.jsn.cam", "backoff", "cidrpack"].join(",");
 
 $`ko build --platform=all --base-import-paths --tags=latest,${git.tag()} ./cmd/{${programs}}`;
 
@@ -88,24 +88,6 @@ const pkgs = [];
 
         build: ({ bin }) => {
           $`go build -o ${bin}/cidrpack -ldflags '-s -w -extldflags "-static" -X "pkg.jsn.cam/jsn.Version=${git.tag()}"' ./cmd/cidrpack`;
-        },
-      }),
-    );
-
-    pkgs.push(
-      method.build({
-        name: "typein",
-        description: "Type text like a human",
-        homepage: "https://jsn.cam",
-        license: "aGPLv3",
-        goarch,
-
-        documentation: {
-          LICENSE: "LICENSE",
-        },
-
-        build: ({ bin }) => {
-          $`go build -o ${bin}/typein -ldflags '-s -w -X "pkg.jsn.cam/jsn.Version=${git.tag()}"' ./cmd/typein`;
         },
       }),
     );
