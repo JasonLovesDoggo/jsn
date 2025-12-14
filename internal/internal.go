@@ -1,4 +1,4 @@
-// Package internal centralizes a lot of other boring configuration and startup logic into a common place.
+// Package fsdiff centralizes a lot of other boring configuration and startup logic into a common place.
 package internal
 
 import (

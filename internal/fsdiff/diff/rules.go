@@ -1,7 +1,7 @@
 package diff
 
 import (
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
+	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
 )
 
 // CriticalChange represents a security-relevant change

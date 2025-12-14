@@ -7,8 +7,7 @@ import (
 	"sort"
 
 	"github.com/cespare/xxhash/v2"
-
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
+	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
 )
 
 // SerializableNode represents a serializable node without circular references

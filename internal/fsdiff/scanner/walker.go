@@ -9,16 +9,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
-	systemv2 "pkg.jsn.cam/jsn/cmd/fsdiff/internal/system/v2"
+	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
+	"pkg.jsn.cam/jsn/internal/fsdiff/system/v2"
 )
 
 type Walker struct {
-	dirQueue   chan string
-	fileJobs   chan FileJob
-	results    chan<- *FileResult
-	workers    int
-	traceFiles bool
+	dirQueue         chan string
+	fileJobs         chan FileJob
+	results          chan<- *FileResult
+	workers          int
+	traceFiles       bool
+	skipExtendedAttr bool // Skip xattrs/SELinux/ACLs for faster scans
 }
 
 type FileJob struct {
@@ -54,7 +55,7 @@ func (w *Walker) Walk(ctx context.Context, root string, ignorer *PathIgnorer, ha
 		Mode:     rootInfo.Mode(),
 		ModTime:  rootInfo.ModTime(),
 		IsDir:    true,
-		FileInfo: systemv2.GetFileInfo(root, rootInfo),
+		FileInfo: v2.GetFileInfo(root, rootInfo),
 	}}
 
 	var activeDirs int64 = 1
@@ -171,7 +172,7 @@ func (w *Walker) dirWorker(ctx context.Context, wg *sync.WaitGroup, ignorer *Pat
 						Mode:     info.Mode(),
 						ModTime:  info.ModTime(),
 						IsDir:    true,
-						FileInfo: systemv2.GetFileInfo(fullPath, info),
+						FileInfo: v2.GetFileInfo(fullPath, info),
 					}}:
 					}
 					subdirs = append(subdirs, fullPath)
@@ -260,7 +261,7 @@ func (w *Walker) processDir(ctx context.Context, path string, ignorer *PathIgnor
 				Mode:     info.Mode(),
 				ModTime:  info.ModTime(),
 				IsDir:    true,
-				FileInfo: systemv2.GetFileInfo(fullPath, info),
+				FileInfo: v2.GetFileInfo(fullPath, info),
 			}}:
 			}
 			subdirs = append(subdirs, fullPath)
@@ -318,13 +319,18 @@ func (w *Walker) fileWorker(ctx context.Context, wg *sync.WaitGroup, hasher *Has
 			fmt.Printf("  → FILE %s\n", job.Path)
 		}
 
-		var fileInfo *systemv2.FileInfo
-		if w.traceFiles {
-			fmt.Printf("    STAT %s\n", job.Path)
-		}
-		fileInfo = systemv2.GetFileInfo(job.Path, job.Info)
-		if w.traceFiles {
-			fmt.Printf("    DONE %s\n", job.Path)
+		var fileInfo *v2.FileInfo
+		if w.skipExtendedAttr {
+			// Fast mode: just get basic permissions/ownership, no syscalls for xattrs
+			fileInfo = v2.GetFileInfoFast(job.Path, job.Info)
+		} else {
+			if w.traceFiles {
+				fmt.Printf("    STAT %s\n", job.Path)
+			}
+			fileInfo = v2.GetFileInfo(job.Path, job.Info)
+			if w.traceFiles {
+				fmt.Printf("    DONE %s\n", job.Path)
+			}
 		}
 
 		record := &snapshot.FileRecord{

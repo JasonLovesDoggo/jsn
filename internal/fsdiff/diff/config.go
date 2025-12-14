@@ -3,7 +3,7 @@ package diff
 import (
 	"time"
 
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
+	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
 )
 
 // Config holds diff configuration

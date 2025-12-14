@@ -1,6 +1,6 @@
 //go:build windows
 
-package system
+package v2
 
 import (
 	"io/fs"
@@ -8,6 +8,11 @@ import (
 
 	"golang.org/x/sys/windows"
 )
+
+// GetFileInfoFast returns basic file info without extended attributes (same as GetFileInfo on Windows)
+func GetFileInfoFast(path string, info fs.FileInfo) *FileInfo {
+	return GetFileInfo(path, info)
+}
 
 func GetFileInfo(path string, info fs.FileInfo) *FileInfo {
 	fi := &FileInfo{}

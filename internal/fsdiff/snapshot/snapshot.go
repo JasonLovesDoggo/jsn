@@ -8,9 +8,9 @@ import (
 	"os"
 	"time"
 
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/system"
-	systemv2 "pkg.jsn.cam/jsn/cmd/fsdiff/internal/system/v2"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/fsdiff"
+	"pkg.jsn.cam/jsn/internal/fsdiff/system"
+	systemv2 "pkg.jsn.cam/jsn/internal/fsdiff/system/v2"
+	"pkg.jsn.cam/jsn/pkg/fsdiff"
 )
 
 // FileRecord represents a single file's metadata and hash

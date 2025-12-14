@@ -25,6 +25,35 @@ const (
 	FS_IOC_GETFLAGS = 0x80086601
 )
 
+// GetFileInfoFast returns basic file info without extended attributes (faster)
+func GetFileInfoFast(path string, info fs.FileInfo) *FileInfo {
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return &FileInfo{}
+	}
+
+	perm := uint16(info.Mode().Perm() & 0777)
+
+	// Convert special mode bits to their traditional octal representation
+	var special uint16
+	if info.Mode()&fs.ModeSetuid != 0 {
+		special |= PERM_SETUID
+	}
+	if info.Mode()&fs.ModeSetgid != 0 {
+		special |= PERM_SETGID
+	}
+	if info.Mode()&fs.ModeSticky != 0 {
+		special |= PERM_STICKY
+	}
+
+	return &FileInfo{
+		Permissions: perm | special,
+		OwnerID:     stat.Uid,
+		GroupID:     stat.Gid,
+		Metadata:    nil, // Skip metadata for fast mode
+	}
+}
+
 func GetFileInfo(path string, info fs.FileInfo) *FileInfo {
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok {
@@ -181,9 +210,18 @@ func getAllXattrs(path string) map[string]string {
 
 	xattrs := make(map[string]string, len(keys))
 	for _, key := range keys {
+		// Skip macOS internal attributes (com.apple.provenance, com.apple.quarantine, etc.)
+		// These are system bookkeeping and not relevant for forensic analysis
+		if len(key) > 9 && key[:10] == "com.apple." {
+			continue
+		}
 		if val := getXattr(path, key); val != "" {
 			xattrs[key] = val
 		}
+	}
+
+	if len(xattrs) == 0 {
+		return nil
 	}
 
 	return xattrs

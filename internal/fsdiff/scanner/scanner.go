@@ -16,9 +16,9 @@ import (
 
 	"github.com/pbnjay/memory"
 	"golang.org/x/sys/unix"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/merkle"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/system"
+	"pkg.jsn.cam/jsn/internal/fsdiff/merkle"
+	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
+	"pkg.jsn.cam/jsn/internal/fsdiff/system"
 )
 
 type Config struct {
@@ -28,6 +28,7 @@ type Config struct {
 	Verbose          bool
 	TraceFiles       bool               // Print every file access
 	PreviousSnapshot *snapshot.Snapshot // For incremental mode
+	SkipExtendedAttr bool               // Skip xattrs/SELinux/ACLs for faster scans (FSDVR mode)
 }
 
 type Scanner struct {
@@ -79,6 +80,7 @@ func New(config *Config) *Scanner {
 
 	walker := newWalker(config.Workers * 2)
 	walker.traceFiles = config.TraceFiles
+	walker.skipExtendedAttr = config.SkipExtendedAttr
 
 	return &Scanner{
 		config:  config,

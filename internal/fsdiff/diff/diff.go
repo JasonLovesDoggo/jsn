@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
-	systemv2 "pkg.jsn.cam/jsn/cmd/fsdiff/internal/system/v2"
+	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
+	systemv2 "pkg.jsn.cam/jsn/internal/fsdiff/system/v2"
 )
 
 // New creates a new differ

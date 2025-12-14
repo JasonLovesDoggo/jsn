@@ -414,7 +414,7 @@ func BenchmarkComparison(b *testing.B) {
 // TODO(json): Re-run on x86-64 Linux to test AVX2 speedup.
 // On ARM64 (M4 Pro), xxhash was faster in most cases than xxh3 for streaming.
 // xxh3's advantage is AVX2/SSE2 on x86-64 (up to 44 GB/s vs 8 GB/s claimed).
-// Run: go test -bench='BenchmarkXXHashVsXXH3|BenchmarkPureHash' -benchtime=1s ./cmd/fsdiff/internal/scanner/
+// Run: go test -bench='BenchmarkXXHashVsXXH3|BenchmarkPureHash' -benchtime=1s ./cmd/fsdiff/fsdiff/scanner/
 
 // hashFileXXHash hashes using cespare/xxhash
 func hashFileXXHash(path string, buffer []byte) (uint64, error) {

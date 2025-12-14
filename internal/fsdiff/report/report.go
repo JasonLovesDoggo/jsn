@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/diff"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
+	diff2 "pkg.jsn.cam/jsn/internal/fsdiff/diff"
+	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
 )
 
 //go:generate go tool templ generate
 
 // GenerateHTML creates a detailed HTML report of the differences using templ
-func GenerateHTML(result *diff.Result, filename string) error {
+func GenerateHTML(result *diff2.Result, filename string) error {
 	// Build file trees
 	addedTree := buildFileTree(result.Added, nil)
 	modifiedTree := buildModifiedTree(result.Modified)
@@ -53,12 +53,12 @@ func GenerateHTML(result *diff.Result, filename string) error {
 // HTMLReportData contains all data needed for the HTML report
 type HTMLReportData struct {
 	GeneratedAt       time.Time
-	Result            *diff.Result
-	ChangesByType     map[diff.ChangeType][]string
+	Result            *diff2.Result
+	ChangesByType     map[diff2.ChangeType][]string
 	AddedTreeHTML     string
 	ModifiedTreeHTML  string
 	DeletedTreeHTML   string
-	CriticalChanges   []diff.CriticalChange
+	CriticalChanges   []diff2.CriticalChange
 	TopLargestAdded   []FileSize
 	TopLargestDeleted []FileSize
 }
@@ -127,13 +127,13 @@ func formatTime(t time.Time) string {
 	return t.Format("2006-01-02 15:04:05")
 }
 
-func getChangeIcon(changeType diff.ChangeType) string {
+func getChangeIcon(changeType diff2.ChangeType) string {
 	switch changeType {
-	case diff.ChangeAdded:
+	case diff2.ChangeAdded:
 		return "➕"
-	case diff.ChangeModified:
+	case diff2.ChangeModified:
 		return "🔄"
-	case diff.ChangeDeleted:
+	case diff2.ChangeDeleted:
 		return "❌"
 	default:
 		return "❓"
@@ -159,7 +159,7 @@ func truncateString(s string, length int) string {
 }
 
 // buildFileTree creates a tree structure from a map of file records
-func buildFileTree(files map[string]*snapshot.FileRecord, changes map[string]*diff.ChangeDetail) map[string]*TreeNode {
+func buildFileTree(files map[string]*snapshot.FileRecord, changes map[string]*diff2.ChangeDetail) map[string]*TreeNode {
 	tree := make(map[string]*TreeNode)
 
 	for path, record := range files {
@@ -213,7 +213,7 @@ func buildFileTree(files map[string]*snapshot.FileRecord, changes map[string]*di
 }
 
 // buildModifiedTree creates a tree structure from modified files
-func buildModifiedTree(changes map[string]*diff.ChangeDetail) map[string]*TreeNode {
+func buildModifiedTree(changes map[string]*diff2.ChangeDetail) map[string]*TreeNode {
 	tree := make(map[string]*TreeNode)
 
 	for path, change := range changes {
@@ -359,7 +359,7 @@ func renderModifiedTreeToHTML(tree map[string]*TreeNode, prefix, colorClass stri
 				</div>`,
 				nodeID, nodeID, node.Name, node.Count, nodeID, renderModifiedTreeToHTML(node.Children, prefix, colorClass)))
 		} else {
-			if change, ok := node.File.(*diff.ChangeDetail); ok {
+			if change, ok := node.File.(*diff2.ChangeDetail); ok {
 				var changesHTML strings.Builder
 				for i, ch := range change.Changes {
 					if i > 0 {

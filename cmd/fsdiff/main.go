@@ -6,18 +6,16 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"pkg.jsn.cam/jsn/pkg/flagr"
 	"runtime"
 	"strings"
 
 	"pkg.jsn.cam/jsn/internal"
-
-	"pkg.jsn.cam/jsn/cmd/fsdiff/pkg/fsdiff"
-
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/diff"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/report"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/scanner"
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
+	"pkg.jsn.cam/jsn/internal/fsdiff/diff"
+	"pkg.jsn.cam/jsn/internal/fsdiff/report"
+	"pkg.jsn.cam/jsn/internal/fsdiff/scanner"
+	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
+	"pkg.jsn.cam/jsn/pkg/flagr"
+	"pkg.jsn.cam/jsn/pkg/fsdiff"
 
 	_ "net/http/pprof"
 )
@@ -42,7 +40,7 @@ func main() {
 
 	if *debug {
 		go func() {
-			log.Println(http.ListenAndServe("localhost:6060", nil)) // Starts pprof server
+			log.Println(http.ListenAndServe("localhost:6060", nil))
 		}()
 	}
 
@@ -53,8 +51,6 @@ func main() {
 		handleSnapshot()
 	case "diff":
 		handleDiff()
-	case "live":
-		handleLive()
 	case "version":
 		fmt.Printf("fsdiff version %s\n", fsdiff.Version)
 	default:
@@ -66,33 +62,38 @@ func main() {
 
 func printUsage() {
 	fmt.Printf("Filesystem Diff Tool v%s\n\n", fsdiff.Version)
+	fmt.Println("Create and compare filesystem snapshots for cybersecurity and forensics.")
+	fmt.Println("")
 	fmt.Println("USAGE:")
 	fmt.Println("  fsdiff [options] <command> [args...]")
 	fmt.Println("")
 	fmt.Println("COMMANDS:")
 	fmt.Println("  snapshot <root_path> <output_file>    Create filesystem snapshot")
 	fmt.Println("  diff <baseline> <current> [report]    Compare two snapshots")
-	fmt.Println("  live <baseline> <root_path> [report]  Compare baseline to live filesystem")
 	fmt.Println("  version                               Show version information")
 	fmt.Println("")
 	fmt.Println("OPTIONS:")
 	fmt.Printf("  -workers int    Number of parallel workers (default: %d)\n", runtime.NumCPU()*2)
-	fmt.Println("  -v              Verbose output")
+	fmt.Println("  -v              Verbose output with progress")
+	fmt.Println("  -vvv            Trace every file access (very verbose)")
 	fmt.Println("  -d              Enable pprof profiling on port 6060")
 	fmt.Println("  -ignore string  Comma-separated ignore patterns (e.g., '.cache,*.tmp')")
 	fmt.Println("  -prev string    Previous snapshot for incremental mode (skips unchanged files)")
 	fmt.Println("")
 	fmt.Println("EXAMPLES:")
-	fmt.Println("  fsdiff snapshot / baseline.snap")
-	fmt.Println("  fsdiff diff baseline.snap current.snap changes.html")
-	fmt.Println("  fsdiff -ignore '.cache,node_modules' live baseline.snap /")
-	fmt.Println("  fsdiff -workers 8 -v snapshot /home/user user-snapshot.snap")
+	fmt.Println("  fsdiff snapshot / baseline.snap              # Create snapshot of root")
+	fmt.Println("  fsdiff snapshot /home user.snap              # Snapshot home directory")
+	fmt.Println("  fsdiff diff baseline.snap current.snap       # Compare snapshots")
+	fmt.Println("  fsdiff diff base.snap cur.snap report.html   # Generate HTML report")
 	fmt.Println("")
 	fmt.Println("INCREMENTAL MODE:")
 	fmt.Println("  # First scan (or after Ctrl+C):")
 	fmt.Println("  fsdiff snapshot / baseline.snap")
 	fmt.Println("  # If interrupted, resumes faster:")
 	fmt.Println("  fsdiff -prev baseline.snap.partial snapshot / baseline.snap")
+	fmt.Println("")
+	fmt.Println("SEE ALSO:")
+	fmt.Println("  fsdvr - Filesystem DVR for recording changes over time")
 }
 
 func handleSnapshot() {
@@ -117,15 +118,15 @@ func handleSnapshot() {
 		partialFile := outputFile + ".partial"
 		if _, err := os.Stat(partialFile); err == nil {
 			prevFile = partialFile
-			fmt.Printf("⚡ Auto-detected partial snapshot: %s\n", partialFile)
+			fmt.Printf("Auto-detected partial snapshot: %s\n", partialFile)
 		}
 	}
 	if prevFile != "" {
 		var err error
 		prevSnapshot, err = snapshot.Load(prevFile)
 		if err != nil {
-			fmt.Printf("⚠️  Could not load previous snapshot: %v\n", err)
-			fmt.Printf("   Continuing with full scan...\n")
+			fmt.Printf("Could not load previous snapshot: %v\n", err)
+			fmt.Printf("Continuing with full scan...\n")
 		}
 	}
 
@@ -138,20 +139,20 @@ func handleSnapshot() {
 		PreviousSnapshot: prevSnapshot,
 	}
 
-	fmt.Printf("🔍 Scanning filesystem: %s\n", rootPath)
-	fmt.Printf("⚙️  Using %d workers\n", *workers)
+	fmt.Printf("Scanning filesystem: %s\n", rootPath)
+	fmt.Printf("Using %d workers\n", *workers)
 	if len(ignorePatterns) > 0 {
-		fmt.Printf("🚫 Ignoring patterns: %s\n", strings.Join(ignorePatterns, ", "))
+		fmt.Printf("Ignoring patterns: %s\n", strings.Join(ignorePatterns, ", "))
 	}
 
 	s := scanner.New(config)
 
 	// Use streaming scan to keep memory usage low
-	fmt.Printf("💾 Creating snapshot: %s\n", outputFile)
+	fmt.Printf("Creating snapshot: %s\n", outputFile)
 	result := s.ScanToFileWithCancel(rootPath, outputFile)
 
 	if result.Error != nil {
-		fmt.Printf("❌ Error creating snapshot: %v\n", result.Error)
+		fmt.Printf("Error creating snapshot: %v\n", result.Error)
 		os.Exit(1)
 	}
 
@@ -159,13 +160,13 @@ func handleSnapshot() {
 		// Rename to .partial suffix
 		partialFile := outputFile + ".partial"
 		if err := os.Rename(outputFile, partialFile); err == nil {
-			fmt.Printf("💾 Partial snapshot saved as: %s\n", partialFile)
-			fmt.Printf("💡 Resume with: fsdiff -prev %s snapshot %s %s\n", partialFile, rootPath, outputFile)
+			fmt.Printf("Partial snapshot saved as: %s\n", partialFile)
+			fmt.Printf("Resume with: fsdiff -prev %s snapshot %s %s\n", partialFile, rootPath, outputFile)
 		}
 		os.Exit(130) // Standard exit code for SIGINT
 	}
 
-	fmt.Printf("✅ Snapshot created successfully!\n")
+	fmt.Printf("Snapshot created successfully!\n")
 }
 
 func handleDiff() {
@@ -185,21 +186,21 @@ func handleDiff() {
 	// Parse ignore patterns for diff
 	ignorePatterns := parseIgnorePatterns(*ignore)
 
-	fmt.Printf("📖 Loading baseline: %s\n", baselineFile)
+	fmt.Printf("Loading baseline: %s\n", baselineFile)
 	baseline, err := snapshot.Load(baselineFile)
 	if err != nil {
-		fmt.Printf("❌ Error loading baseline: %v\n", err)
+		fmt.Printf("Error loading baseline: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("📖 Loading current: %s\n", currentFile)
+	fmt.Printf("Loading current: %s\n", currentFile)
 	current, err := snapshot.Load(currentFile)
 	if err != nil {
-		fmt.Printf("❌ Error loading current snapshot: %v\n", err)
+		fmt.Printf("Error loading current snapshot: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("🔍 Comparing snapshots...\n")
+	fmt.Printf("Comparing snapshots...\n")
 	config := &diff.Config{
 		IgnorePatterns: ignorePatterns,
 		Verbose:        *verbose,
@@ -213,73 +214,12 @@ func handleDiff() {
 
 	// Generate report if requested
 	if reportFile != "" {
-		fmt.Printf("📄 Generating report: %s\n", reportFile)
+		fmt.Printf("Generating report: %s\n", reportFile)
 		if err := report.GenerateHTML(result, reportFile); err != nil {
-			fmt.Printf("❌ Error generating report: %v\n", err)
+			fmt.Printf("Error generating report: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("✅ Report saved successfully!\n")
-	}
-}
-
-func handleLive() {
-	args := flag.Args()[1:]
-	if len(args) < 2 || len(args) > 3 {
-		fmt.Println("Usage: fsdiff live <baseline> <root_path> [report_file]")
-		os.Exit(1)
-	}
-
-	baselineFile := args[0]
-	rootPath := args[1]
-	reportFile := ""
-	if len(args) == 3 {
-		reportFile = args[2]
-	}
-
-	// Parse ignore patterns
-	ignorePatterns := parseIgnorePatterns(*ignore)
-
-	fmt.Printf("📖 Loading baseline: %s\n", baselineFile)
-	baseline, err := snapshot.Load(baselineFile)
-	if err != nil {
-		fmt.Printf("❌ Error loading baseline: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("🔍 Scanning current filesystem: %s\n", rootPath)
-	scanConfig := &scanner.Config{
-		Workers:        *workers,
-		Verbose:        *verbose,
-		IgnorePatterns: ignorePatterns,
-	}
-
-	s := scanner.New(scanConfig)
-	current, err := s.ScanFilesystem(rootPath)
-	if err != nil {
-		fmt.Printf("❌ Error scanning filesystem: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("🔍 Comparing with baseline...\n")
-	diffConfig := &diff.Config{
-		IgnorePatterns: ignorePatterns,
-		Verbose:        *verbose,
-	}
-
-	d := diff.New(diffConfig)
-	result := d.Compare(baseline, current)
-
-	// Print summary
-	printDiffSummary(result)
-
-	// Generate report if requested
-	if reportFile != "" {
-		fmt.Printf("📄 Generating report: %s\n", reportFile)
-		if err := report.GenerateHTML(result, reportFile); err != nil {
-			fmt.Printf("❌ Error generating report: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("✅ Report saved successfully!\n")
+		fmt.Printf("Report saved successfully!\n")
 	}
 }
 
@@ -300,7 +240,7 @@ func parseIgnorePatterns(ignore string) []string {
 
 func printDiffSummary(result *diff.Result) {
 	fmt.Println("\n" + strings.Repeat("=", 60))
-	fmt.Println("📊 FILESYSTEM DIFF SUMMARY")
+	fmt.Println("FILESYSTEM DIFF SUMMARY")
 	fmt.Println(strings.Repeat("=", 60))
 
 	fmt.Printf("Baseline: %s (%s) - %s\n",
@@ -314,21 +254,21 @@ func printDiffSummary(result *diff.Result) {
 		result.Current.SystemInfo.Timestamp.Format("2006-01-02 15:04:05"))
 
 	summary := result.Summary
-	fmt.Printf("📈 CHANGES:\n")
+	fmt.Printf("CHANGES:\n")
 	fmt.Printf("   Added:    %d files/directories\n", summary.AddedCount)
 	fmt.Printf("   Modified: %d files/directories\n", summary.ModifiedCount)
 	fmt.Printf("   Deleted:  %d files/directories\n", summary.DeletedCount)
 	fmt.Printf("   Total:    %d changes\n\n", summary.TotalChanges)
 
 	if summary.TotalChanges == 0 {
-		fmt.Println("✅ No changes detected!")
+		fmt.Println("No changes detected!")
 		return
 	}
 
 	// Show critical changes (common attack indicators)
 	criticalChanges := findCriticalChanges(result)
 	if len(criticalChanges) > 0 {
-		fmt.Printf("🚨 CRITICAL CHANGES:\n")
+		fmt.Printf("CRITICAL CHANGES:\n")
 		for _, change := range criticalChanges {
 			fmt.Printf("   %s %s\n", change.Type, change.Path)
 		}
@@ -411,7 +351,7 @@ func showSampleChanges(changeType string, changes interface{}, limit int) {
 		return
 	}
 
-	fmt.Printf("📁 %s (%d total):\n", changeType, count)
+	fmt.Printf("%s (%d total):\n", changeType, count)
 	for i, path := range paths {
 		if i >= limit {
 			fmt.Printf("   ... and %d more\n", count-limit)
