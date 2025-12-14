@@ -19,10 +19,15 @@ Fast parallel filesystem diff tool for cybersecurity competitions and system adm
 ### Prerequisites
 - Go 1.24+
 
-### Build
+### Install
+```bash
+go install github.com/JasonLovesDoggo/jsn/cmd/fsdiff@latest
+```
+
+### Build from Source
 ```bash
 git clone https://github.com/JasonLovesDoggo/jsn
-cd cmd/fsdiff
+cd jsn/cmd/fsdiff
 go build -o fsdiff
 ```
 
