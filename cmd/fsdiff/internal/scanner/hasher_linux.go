@@ -2,6 +2,15 @@
 
 package scanner
 
+import (
+	"fmt"
+	"io"
+	"os"
+
+	"github.com/cespare/xxhash/v2"
+	"golang.org/x/sys/unix"
+)
+
 func (h *Hasher) HashFile(path string, size int64) (string, error) {
 	if size == 0 {
 		return EmptyHash, nil // Empty file hash
