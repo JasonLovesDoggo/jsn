@@ -49,6 +49,7 @@ type Snapshot struct {
 	Stats      ScanStats              `json:"stats"`
 	MerkleData SimpleMerkleData       `json:"merkle_data"` // Store essential merkle info
 	MerkleRoot uint64                 `json:"merkle_root"`
+	IsPartial  bool                   `json:"is_partial,omitempty"` // True if scan was interrupted
 }
 
 // SnapshotHeader contains metadata for quick snapshot inspection
@@ -148,27 +149,77 @@ func Load(filename string) (*Snapshot, error) {
 	}
 	defer gzReader.Close()
 
-	// Decode the snapshot
+	// Decode the snapshot header
 	decoder := gob.NewDecoder(gzReader)
 	var snapshot Snapshot
 	if err := decoder.Decode(&snapshot); err != nil {
 		return nil, fmt.Errorf("failed to decode snapshot: %v", err)
 	}
 
+	// Check if this is a streaming format snapshot
+	if snapshot.Version == "streaming" {
+		// Streaming format: header + batches + empty sentinel + stats + merkle + interrupted
+		snapshot.Files = make(map[string]*FileRecord)
+
+		// Read batches until we hit empty sentinel
+		for {
+			var batch []*FileRecord
+			err := decoder.Decode(&batch)
+			if err != nil {
+				// Error reading - stop
+				break
+			}
+			if len(batch) == 0 {
+				// Empty batch is sentinel - end of batches
+				break
+			}
+			for _, record := range batch {
+				snapshot.Files[record.Path] = record
+			}
+		}
+
+		// Read stats
+		var stats ScanStats
+		if err := decoder.Decode(&stats); err == nil {
+			snapshot.Stats = stats
+		}
+
+		// Read merkle root
+		var merkleRoot uint64
+		if err := decoder.Decode(&merkleRoot); err == nil {
+			snapshot.MerkleRoot = merkleRoot
+		}
+
+		// Read interrupted flag
+		var interrupted bool
+		if err := decoder.Decode(&interrupted); err == nil {
+			snapshot.IsPartial = interrupted
+		}
+
+		snapshot.Version = fsdiff.SnapshotVersion
+	}
+
 	// Create a minimal tree representation for compatibility
-	// In a real implementation, you might want to rebuild the full tree
-	// For now, we'll create a simple placeholder
 	snapshot.Tree = &SimpleMerkleTree{
 		RootHash:  snapshot.MerkleRoot,
 		LeafCount: snapshot.MerkleData.LeafCount,
 		Depth:     snapshot.MerkleData.Depth,
 	}
 
-	fmt.Printf("📖 Loaded snapshot: %s (%s) - %d files, %d dirs\n",
-		snapshot.SystemInfo.Hostname,
-		snapshot.SystemInfo.Timestamp.Format("2006-01-02 15:04:05"),
-		snapshot.Stats.FileCount,
-		snapshot.Stats.DirCount)
+	if snapshot.IsPartial {
+		fmt.Printf("📖 Loaded PARTIAL snapshot: %s (%s) - %d files, %d dirs (interrupted)\n",
+			snapshot.SystemInfo.Hostname,
+			snapshot.SystemInfo.Timestamp.Format("2006-01-02 15:04:05"),
+			len(snapshot.Files),
+			snapshot.Stats.DirCount)
+		fmt.Printf("⚠️  This snapshot was interrupted - some files may be missing\n")
+	} else {
+		fmt.Printf("📖 Loaded snapshot: %s (%s) - %d files, %d dirs\n",
+			snapshot.SystemInfo.Hostname,
+			snapshot.SystemInfo.Timestamp.Format("2006-01-02 15:04:05"),
+			len(snapshot.Files),
+			snapshot.Stats.DirCount)
+	}
 
 	return &snapshot, nil
 }

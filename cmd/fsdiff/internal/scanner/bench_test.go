@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/zeebo/xxh3"
 	"golang.org/x/sys/unix"
 )
 
@@ -405,6 +406,147 @@ func BenchmarkComparison(b *testing.B) {
 			b.StopTimer()
 			duration := time.Since(start)
 			b.Logf("%s: %v per iteration", method.name, duration/time.Duration(b.N))
+		})
+	}
+}
+
+// ============== XXH3 vs XXHash Benchmarks ==============
+// TODO(json): Re-run on x86-64 Linux to test AVX2 speedup.
+// On ARM64 (M4 Pro), xxhash was faster in most cases than xxh3 for streaming.
+// xxh3's advantage is AVX2/SSE2 on x86-64 (up to 44 GB/s vs 8 GB/s claimed).
+// Run: go test -bench='BenchmarkXXHashVsXXH3|BenchmarkPureHash' -benchtime=1s ./cmd/fsdiff/internal/scanner/
+
+// hashFileXXHash hashes using cespare/xxhash
+func hashFileXXHash(path string, buffer []byte) (uint64, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	hash := xxhash.New()
+	_, err = io.CopyBuffer(hash, file, buffer)
+	if err != nil {
+		return 0, err
+	}
+	return hash.Sum64(), nil
+}
+
+// hashFileXXH3 hashes using zeebo/xxh3
+func hashFileXXH3(path string, buffer []byte) (uint64, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	hash := xxh3.New()
+	_, err = io.CopyBuffer(hash, file, buffer)
+	if err != nil {
+		return 0, err
+	}
+	return hash.Sum64(), nil
+}
+
+// hashFileMmapXXH3 uses mmap + xxh3 for large files
+func hashFileMmapXXH3(path string, buffer []byte) (uint64, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return 0, err
+	}
+
+	if stat.Size() > 1024*1024 {
+		data, err := unix.Mmap(int(file.Fd()), 0, int(stat.Size()), unix.PROT_READ, unix.MAP_PRIVATE)
+		if err == nil {
+			defer unix.Munmap(data)
+			return xxh3.Hash(data), nil
+		}
+	}
+
+	hash := xxh3.New()
+	_, err = io.CopyBuffer(hash, file, buffer)
+	if err != nil {
+		return 0, err
+	}
+	return hash.Sum64(), nil
+}
+
+// BenchmarkXXHashVsXXH3 compares xxhash vs xxh3 across file sizes
+func BenchmarkXXHashVsXXH3(b *testing.B) {
+	buffer := make([]byte, 256*1024)
+
+	for _, size := range testSizes {
+		filename := createTestFile(b, size.size)
+
+		b.Run(fmt.Sprintf("xxhash_%s", size.name), func(b *testing.B) {
+			b.SetBytes(size.size)
+			for i := 0; i < b.N; i++ {
+				_, err := hashFileXXHash(filename, buffer)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+
+		b.Run(fmt.Sprintf("xxh3_%s", size.name), func(b *testing.B) {
+			b.SetBytes(size.size)
+			for i := 0; i < b.N; i++ {
+				_, err := hashFileXXH3(filename, buffer)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+
+		// For larger files, also test mmap variant
+		if size.size >= 1024*1024 {
+			b.Run(fmt.Sprintf("xxh3_mmap_%s", size.name), func(b *testing.B) {
+				b.SetBytes(size.size)
+				for i := 0; i < b.N; i++ {
+					_, err := hashFileMmapXXH3(filename, buffer)
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		}
+	}
+}
+
+// BenchmarkPureHash benchmarks just the hash computation (no I/O)
+func BenchmarkPureHash(b *testing.B) {
+	sizes := []int{
+		1024,             // 1KB
+		64 * 1024,        // 64KB
+		256 * 1024,       // 256KB
+		1024 * 1024,      // 1MB
+		10 * 1024 * 1024, // 10MB
+	}
+
+	for _, size := range sizes {
+		data := make([]byte, size)
+		for i := range data {
+			data[i] = byte(i)
+		}
+
+		b.Run(fmt.Sprintf("xxhash_%s", formatSize(int64(size))), func(b *testing.B) {
+			b.SetBytes(int64(size))
+			for i := 0; i < b.N; i++ {
+				xxhash.Sum64(data)
+			}
+		})
+
+		b.Run(fmt.Sprintf("xxh3_%s", formatSize(int64(size))), func(b *testing.B) {
+			b.SetBytes(int64(size))
+			for i := 0; i < b.N; i++ {
+				xxh3.Hash(data)
+			}
 		})
 	}
 }

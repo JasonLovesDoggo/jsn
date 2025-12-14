@@ -2,18 +2,21 @@ package scanner
 
 import (
 	"compress/gzip"
+	"context"
 	"encoding/gob"
 	"fmt"
 	"os"
+	"os/signal"
 	"runtime"
 	"runtime/pprof"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
-	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/merkle"
-
+	"github.com/pbnjay/memory"
 	"golang.org/x/sys/unix"
+	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/merkle"
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/snapshot"
 	"pkg.jsn.cam/jsn/cmd/fsdiff/internal/system"
 )
@@ -23,6 +26,7 @@ type Config struct {
 	Workers          int
 	BufferSize       int
 	Verbose          bool
+	TraceFiles       bool               // Print every file access
 	PreviousSnapshot *snapshot.Snapshot // For incremental mode
 }
 
@@ -42,10 +46,14 @@ type ScanStats struct {
 	Errors         int64
 }
 
+// ScanResult contains the scan outcome
+type ScanResult struct {
+	Snapshot    *snapshot.Snapshot
+	Interrupted bool
+	Error       error
+}
+
 func New(config *Config) *Scanner {
-	if config.BufferSize == 0 {
-		config.BufferSize = 256 * 1024
-	}
 	if config.Workers == 0 {
 		// Optimize for memory efficiency while maintaining speed
 		// More workers = faster but exponentially more memory
@@ -58,6 +66,9 @@ func New(config *Config) *Scanner {
 			config.Workers = cores // Cap at core count for large systems
 		}
 	}
+	if config.BufferSize == 0 {
+		config.BufferSize = calculateOptimalBufferSize(config.Workers)
+	}
 
 	// Increase file descriptor limit
 	var rLimit unix.Rlimit
@@ -66,27 +77,70 @@ func New(config *Config) *Scanner {
 		unix.Setrlimit(unix.RLIMIT_NOFILE, &rLimit)
 	}
 
+	walker := newWalker(config.Workers * 2)
+	walker.traceFiles = config.TraceFiles
+
 	return &Scanner{
 		config:  config,
 		stats:   &ScanStats{},
 		ignorer: newPathIgnorer(config.IgnorePatterns),
 		hasher:  newHasher(config.Workers, config.BufferSize),
-		walker:  newWalker(config.Workers * 2),
+		walker:  walker,
 	}
 }
 
 func (s *Scanner) ScanFilesystem(rootPath string) (*snapshot.Snapshot, error) {
+	result := s.ScanFilesystemWithCancel(rootPath)
+	return result.Snapshot, result.Error
+}
+
+func (s *Scanner) ScanFilesystemWithCancel(rootPath string) *ScanResult {
 	s.stats.StartTime = time.Now()
+
+	// Set up signal handling
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
+
+	interrupted := false
+	go func() {
+		sigCount := 0
+		for {
+			select {
+			case <-sigChan:
+				sigCount++
+				if sigCount == 1 {
+					if s.config.Verbose {
+						fmt.Println("\n⚠️  Interrupted - saving partial snapshot...")
+					}
+					interrupted = true
+					cancel()
+				} else if sigCount >= 2 {
+					fmt.Println("\n🛑 Force exit")
+					os.Exit(130)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	if s.config.Verbose {
 		fmt.Printf("🚀 Starting scan: %d workers, %dKB buffers\n",
 			s.config.Workers, s.config.BufferSize/1024)
+		if s.config.PreviousSnapshot != nil {
+			fmt.Printf("⚡ Incremental mode: using previous snapshot (%d files)\n",
+				len(s.config.PreviousSnapshot.Files))
+		}
 	}
 
 	// Start progress monitor
-	ctx := make(chan struct{})
+	progressCtx := make(chan struct{})
 	if s.config.Verbose {
-		go s.progressMonitor(ctx)
+		go s.progressMonitor(progressCtx)
 	}
 
 	// Start result collector
@@ -114,11 +168,11 @@ func (s *Scanner) ScanFilesystem(rootPath string) (*snapshot.Snapshot, error) {
 	}()
 
 	// Walk and process
-	err := s.walker.Walk(rootPath, s.ignorer, s.hasher, results, s.config.PreviousSnapshot)
+	err := s.walker.Walk(ctx, rootPath, s.ignorer, s.hasher, results, s.config.PreviousSnapshot)
 
 	close(results)
 	collectorWg.Wait()
-	close(ctx)
+	close(progressCtx)
 
 	// Build snapshot
 	duration := time.Since(s.stats.StartTime)
@@ -126,6 +180,7 @@ func (s *Scanner) ScanFilesystem(rootPath string) (*snapshot.Snapshot, error) {
 		SystemInfo: system.GetSystemInfo(rootPath),
 		Files:      files,
 		MerkleRoot: merkle.CalculateMerkleRoot(files),
+		IsPartial:  interrupted,
 		Stats: snapshot.ScanStats{
 			FileCount:    int(atomic.LoadInt64(&s.stats.FilesProcessed)),
 			DirCount:     int(atomic.LoadInt64(&s.stats.DirsProcessed)),
@@ -136,33 +191,82 @@ func (s *Scanner) ScanFilesystem(rootPath string) (*snapshot.Snapshot, error) {
 	}
 
 	if s.config.Verbose {
-		s.printSummary(snap)
+		if interrupted {
+			s.printPartialSummary(snap)
+		} else {
+			s.printSummary(snap)
+		}
 	}
 
-	return snap, err
+	// Don't return ctx.Err() as an error - it's expected on interrupt
+	if err != nil && err != context.Canceled {
+		return &ScanResult{Snapshot: snap, Interrupted: interrupted, Error: err}
+	}
+
+	return &ScanResult{Snapshot: snap, Interrupted: interrupted, Error: nil}
 }
 
 // ScanToFile performs a streaming scan that writes directly to a snapshot file
 // This keeps memory usage low by never holding all files in memory at once
 func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
+	result := s.ScanToFileWithCancel(rootPath, outputFile)
+	return result.Error
+}
+
+func (s *Scanner) ScanToFileWithCancel(rootPath, outputFile string) *ScanResult {
 	s.stats.StartTime = time.Now()
+
+	// Set up signal handling
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
+
+	interrupted := false
+	go func() {
+		sigCount := 0
+		for {
+			select {
+			case <-sigChan:
+				sigCount++
+				if sigCount == 1 {
+					if s.config.Verbose {
+						fmt.Println("\n⚠️  Interrupted - saving partial snapshot...")
+					}
+					interrupted = true
+					cancel()
+				} else if sigCount >= 2 {
+					fmt.Println("\n🛑 Force exit")
+					os.Exit(130)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	if s.config.Verbose {
 		fmt.Printf("🚀 Starting streaming scan: %d workers, %dKB buffers\n",
 			s.config.Workers, s.config.BufferSize/1024)
+		if s.config.PreviousSnapshot != nil {
+			fmt.Printf("⚡ Incremental mode: using previous snapshot (%d files)\n",
+				len(s.config.PreviousSnapshot.Files))
+		}
 	}
 
 	// Create output file
 	file, err := os.Create(outputFile)
 	if err != nil {
-		return fmt.Errorf("failed to create output file: %v", err)
+		return &ScanResult{Error: fmt.Errorf("failed to create output file: %v", err)}
 	}
 	defer file.Close()
 
 	// Create gzip writer for compression
 	gzWriter, err := gzip.NewWriterLevel(file, gzip.BestCompression)
 	if err != nil {
-		return fmt.Errorf("failed to create gzip writer: %v", err)
+		return &ScanResult{Error: fmt.Errorf("failed to create gzip writer: %v", err)}
 	}
 	defer gzWriter.Close()
 
@@ -170,9 +274,9 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 	encoder := gob.NewEncoder(gzWriter)
 
 	// Start progress monitor
-	ctx := make(chan struct{})
+	progressCtx := make(chan struct{})
 	if s.config.Verbose {
-		go s.progressMonitor(ctx)
+		go s.progressMonitor(progressCtx)
 	}
 
 	// Create header with system info
@@ -186,7 +290,7 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 
 	// Write header (we'll update stats later)
 	if err := encoder.Encode(header); err != nil {
-		return fmt.Errorf("failed to write header: %v", err)
+		return &ScanResult{Error: fmt.Errorf("failed to write header: %v", err)}
 	}
 
 	// Start result collector with memory-limited batch and rolling merkle calculation
@@ -243,14 +347,19 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 				atomic.AddInt64(&s.stats.Errors, 1)
 			}
 		}
+
+		// Write empty batch as sentinel to mark end of batches
+		if err := encoder.Encode([]*snapshot.FileRecord{}); err != nil {
+			atomic.AddInt64(&s.stats.Errors, 1)
+		}
 	}()
 
 	// Walk and process
-	err = s.walker.Walk(rootPath, s.ignorer, s.hasher, results, s.config.PreviousSnapshot)
+	err = s.walker.Walk(ctx, rootPath, s.ignorer, s.hasher, results, s.config.PreviousSnapshot)
 
 	close(results)
 	collectorWg.Wait()
-	close(ctx)
+	close(progressCtx)
 
 	// Write final stats
 	duration := time.Since(s.stats.StartTime)
@@ -263,16 +372,21 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 	}
 
 	if err := encoder.Encode(finalStats); err != nil {
-		return fmt.Errorf("failed to write final stats: %v", err)
+		return &ScanResult{Error: fmt.Errorf("failed to write final stats: %v", err), Interrupted: interrupted}
 	}
 
 	if err := encoder.Encode(rollingMerkleRoot); err != nil {
-		return fmt.Errorf("failed to write merkle root: %v", err)
+		return &ScanResult{Error: fmt.Errorf("failed to write merkle root: %v", err), Interrupted: interrupted}
+	}
+
+	// Write interrupted flag
+	if err := encoder.Encode(interrupted); err != nil {
+		return &ScanResult{Error: fmt.Errorf("failed to write interrupted flag: %v", err), Interrupted: interrupted}
 	}
 
 	// Ensure all data is written
 	if err := gzWriter.Close(); err != nil {
-		return fmt.Errorf("failed to close gzip writer: %v", err)
+		return &ScanResult{Error: fmt.Errorf("failed to close gzip writer: %v", err), Interrupted: interrupted}
 	}
 
 	// Get final snapshot size for reporting
@@ -283,10 +397,17 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 	}
 
 	if s.config.Verbose {
-		fmt.Printf("✅ Streaming scan complete: %d files, %d dirs, %s in %v (%.0f files/sec)\n",
-			finalStats.FileCount, finalStats.DirCount,
-			formatBytes(finalStats.TotalSize), finalStats.ScanDuration,
-			float64(finalStats.FileCount)/finalStats.ScanDuration.Seconds())
+		if interrupted {
+			fmt.Printf("⚠️  Partial scan saved: %d files, %d dirs, %s in %v (%.0f files/sec)\n",
+				finalStats.FileCount, finalStats.DirCount,
+				formatBytes(finalStats.TotalSize), finalStats.ScanDuration,
+				float64(finalStats.FileCount)/finalStats.ScanDuration.Seconds())
+		} else {
+			fmt.Printf("✅ Streaming scan complete: %d files, %d dirs, %s in %v (%.0f files/sec)\n",
+				finalStats.FileCount, finalStats.DirCount,
+				formatBytes(finalStats.TotalSize), finalStats.ScanDuration,
+				float64(finalStats.FileCount)/finalStats.ScanDuration.Seconds())
+		}
 
 		if snapshotSize > 0 {
 			compressionRatio := (1.0 - float64(snapshotSize)/float64(finalStats.TotalSize)) * 100
@@ -299,7 +420,12 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 		}
 	}
 
-	return err
+	// Don't return ctx.Err() - it's expected on interrupt
+	if err != nil && err != context.Canceled {
+		return &ScanResult{Error: err, Interrupted: interrupted}
+	}
+
+	return &ScanResult{Error: nil, Interrupted: interrupted}
 }
 
 func (s *Scanner) progressMonitor(ctx <-chan struct{}) {
@@ -361,6 +487,18 @@ func (s *Scanner) printSummary(snap *snapshot.Snapshot) {
 	}
 }
 
+func (s *Scanner) printPartialSummary(snap *snapshot.Snapshot) {
+	fmt.Printf("⚠️  Partial scan: %d files, %d dirs, %s in %v (%.0f files/sec)\n",
+		snap.Stats.FileCount, snap.Stats.DirCount,
+		formatBytes(snap.Stats.TotalSize), snap.Stats.ScanDuration,
+		float64(snap.Stats.FileCount)/snap.Stats.ScanDuration.Seconds())
+	fmt.Printf("💡 Use this snapshot with -prev flag to resume faster next time\n")
+
+	if snap.Stats.ErrorCount > 0 {
+		fmt.Printf("⚠️  Errors: %d\n", snap.Stats.ErrorCount)
+	}
+}
+
 func formatBytes(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {
@@ -372,4 +510,33 @@ func formatBytes(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// calculateOptimalBufferSize determines buffer size based on available memory and worker count.
+// Returns a value between 256KB (min) and 8MB (max) per worker.
+func calculateOptimalBufferSize(workers int) int {
+	const (
+		minBuffer = 256 * 1024      // 256KB - fewer syscalls
+		maxBuffer = 8 * 1024 * 1024 // 8MB - diminishing returns above this
+	)
+
+	totalMem := memory.TotalMemory()
+	if totalMem == 0 {
+		return maxBuffer // fallback to max if we can't detect
+	}
+
+	// Use 10% of total memory for buffers
+	bufferBudget := totalMem / 10
+
+	// Divide among workers
+	perWorker := bufferBudget / uint64(workers)
+
+	// Clamp to bounds
+	if perWorker < minBuffer {
+		return minBuffer
+	}
+	if perWorker > maxBuffer {
+		return maxBuffer
+	}
+	return int(perWorker)
 }

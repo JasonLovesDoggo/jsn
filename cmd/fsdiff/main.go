@@ -23,11 +23,13 @@ import (
 )
 
 var (
-	workers = flagr.Int("workers", "w", runtime.NumCPU()*2, "Number of worker goroutines")
-	verbose = flagr.Bool("verbose", "v", true, "Verbose output")
-	debug   = flagr.Bool("debug", "d", false, "Enable pprof profiling on port 6060")
-	ignore  = flagr.String("ignore", "i", "", "Comma-separated list of paths/patterns to ignore (e.g., '.cache,"+
+	workers    = flagr.Int("workers", "w", runtime.NumCPU()*2, "Number of worker goroutines")
+	verbose    = flagr.Bool("verbose", "v", true, "Verbose output")
+	traceFiles = flagr.Bool("vvv", "", false, "Trace every file access (very verbose)")
+	debug      = flagr.Bool("debug", "d", false, "Enable pprof profiling on port 6060")
+	ignore     = flagr.String("ignore", "i", "", "Comma-separated list of paths/patterns to ignore (e.g., '.cache,"+
 		"node_modules,*.log')")
+	prev = flagr.String("prev", "p", "", "Previous snapshot for incremental mode (skip unchanged files)")
 )
 
 func main() {
@@ -78,12 +80,19 @@ func printUsage() {
 	fmt.Println("  -v              Verbose output")
 	fmt.Println("  -d              Enable pprof profiling on port 6060")
 	fmt.Println("  -ignore string  Comma-separated ignore patterns (e.g., '.cache,*.tmp')")
+	fmt.Println("  -prev string    Previous snapshot for incremental mode (skips unchanged files)")
 	fmt.Println("")
 	fmt.Println("EXAMPLES:")
 	fmt.Println("  fsdiff snapshot / baseline.snap")
 	fmt.Println("  fsdiff diff baseline.snap current.snap changes.html")
 	fmt.Println("  fsdiff -ignore '.cache,node_modules' live baseline.snap /")
 	fmt.Println("  fsdiff -workers 8 -v snapshot /home/user user-snapshot.snap")
+	fmt.Println("")
+	fmt.Println("INCREMENTAL MODE:")
+	fmt.Println("  # First scan (or after Ctrl+C):")
+	fmt.Println("  fsdiff snapshot / baseline.snap")
+	fmt.Println("  # If interrupted, resumes faster:")
+	fmt.Println("  fsdiff -prev baseline.snap.partial snapshot / baseline.snap")
 }
 
 func handleSnapshot() {
@@ -99,11 +108,34 @@ func handleSnapshot() {
 	// Parse ignore patterns
 	ignorePatterns := parseIgnorePatterns(*ignore)
 
+	// Load previous snapshot for incremental mode
+	// Auto-detect .partial file if no -prev specified
+	var prevSnapshot *snapshot.Snapshot
+	prevFile := *prev
+	if prevFile == "" {
+		// Check for auto-detected partial file
+		partialFile := outputFile + ".partial"
+		if _, err := os.Stat(partialFile); err == nil {
+			prevFile = partialFile
+			fmt.Printf("⚡ Auto-detected partial snapshot: %s\n", partialFile)
+		}
+	}
+	if prevFile != "" {
+		var err error
+		prevSnapshot, err = snapshot.Load(prevFile)
+		if err != nil {
+			fmt.Printf("⚠️  Could not load previous snapshot: %v\n", err)
+			fmt.Printf("   Continuing with full scan...\n")
+		}
+	}
+
 	// Create scanner with configuration
 	config := &scanner.Config{
-		Workers:        *workers,
-		Verbose:        *verbose,
-		IgnorePatterns: ignorePatterns,
+		Workers:          *workers,
+		Verbose:          *verbose,
+		TraceFiles:       *traceFiles,
+		IgnorePatterns:   ignorePatterns,
+		PreviousSnapshot: prevSnapshot,
 	}
 
 	fmt.Printf("🔍 Scanning filesystem: %s\n", rootPath)
@@ -116,9 +148,21 @@ func handleSnapshot() {
 
 	// Use streaming scan to keep memory usage low
 	fmt.Printf("💾 Creating snapshot: %s\n", outputFile)
-	if err := s.ScanToFile(rootPath, outputFile); err != nil {
-		fmt.Printf("❌ Error creating snapshot: %v\n", err)
+	result := s.ScanToFileWithCancel(rootPath, outputFile)
+
+	if result.Error != nil {
+		fmt.Printf("❌ Error creating snapshot: %v\n", result.Error)
 		os.Exit(1)
+	}
+
+	if result.Interrupted {
+		// Rename to .partial suffix
+		partialFile := outputFile + ".partial"
+		if err := os.Rename(outputFile, partialFile); err == nil {
+			fmt.Printf("💾 Partial snapshot saved as: %s\n", partialFile)
+			fmt.Printf("💡 Resume with: fsdiff -prev %s snapshot %s %s\n", partialFile, rootPath, outputFile)
+		}
+		os.Exit(130) // Standard exit code for SIGINT
 	}
 
 	fmt.Printf("✅ Snapshot created successfully!\n")

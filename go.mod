@@ -14,12 +14,14 @@ require (
 	github.com/go-vgo/robotgo v1.0.0
 	github.com/joho/godotenv v1.5.1
 	github.com/json-iterator/go v1.1.12
+	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58
 	github.com/posener/complete v1.2.3
 	github.com/prometheus/client_golang v1.23.2
 	github.com/sahilm/fuzzy v0.1.1
 	github.com/segmentio/encoding v0.5.3
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.18.0
+	github.com/zeebo/xxh3 v1.0.2
 	go4.org v0.0.0-20230225012048-214862532bf5
 	golang.org/x/sys v0.38.0
 )
@@ -54,6 +56,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/jezek/xgb v1.2.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
