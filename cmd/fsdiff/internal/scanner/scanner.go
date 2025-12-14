@@ -19,10 +19,11 @@ import (
 )
 
 type Config struct {
-	IgnorePatterns []string
-	Workers        int
-	BufferSize     int
-	Verbose        bool
+	IgnorePatterns   []string
+	Workers          int
+	BufferSize       int
+	Verbose          bool
+	PreviousSnapshot *snapshot.Snapshot // For incremental mode
 }
 
 type Scanner struct {
@@ -113,7 +114,7 @@ func (s *Scanner) ScanFilesystem(rootPath string) (*snapshot.Snapshot, error) {
 	}()
 
 	// Walk and process
-	err := s.walker.Walk(rootPath, s.ignorer, s.hasher, results)
+	err := s.walker.Walk(rootPath, s.ignorer, s.hasher, results, s.config.PreviousSnapshot)
 
 	close(results)
 	collectorWg.Wait()
@@ -245,7 +246,7 @@ func (s *Scanner) ScanToFile(rootPath, outputFile string) error {
 	}()
 
 	// Walk and process
-	err = s.walker.Walk(rootPath, s.ignorer, s.hasher, results)
+	err = s.walker.Walk(rootPath, s.ignorer, s.hasher, results, s.config.PreviousSnapshot)
 
 	close(results)
 	collectorWg.Wait()

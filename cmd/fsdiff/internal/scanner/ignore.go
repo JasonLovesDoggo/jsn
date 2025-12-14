@@ -14,15 +14,25 @@ type PathIgnorer struct {
 
 func newPathIgnorer(userPatterns []string) *PathIgnorer {
 	defaultPatterns := []string{
+		// Linux virtual/temp filesystems
 		"/proc", "/sys", "/dev", "/tmp", "/var/tmp", "/run", "/var/run",
 		"/var/log", "/var/cache", "/var/lib/dhcp",
-		"/.cache", "node_modules", "*.log", "*.tmp",
 		"/home/*/.cache", "/home/*/.local/share/Trash",
 		"/home/*/.mozilla/firefox/*/Cache",
 		"/home/*/.config/google-chrome/*/Cache",
 		"/var/lib/docker/overlay2", "/var/lib/containerd",
+
+		// macOS - exclude mounted volumes (NAS, external drives) by default
+		"/Volumes",
+		"/System/Volumes/Data", // APFS firmlinks
+		"/.Spotlight-V100", "/.fseventsd", "/.Trashes",
+		"/Library/Caches", "/Users/*/Library/Caches",
+		"/private/var/folders", // macOS temp
+
+		// Common dev/build artifacts
+		"/.cache", "node_modules",
 		".git", ".svn", ".hg", "__pycache__", ".pytest_cache",
-		"*.pyc", "*.pyo", "*.swp", "*.bak", "*~",
+		"*.pyc", "*.pyo", "*.swp", "*.bak", "*~", "*.log", "*.tmp",
 	}
 
 	ignorer := &PathIgnorer{
