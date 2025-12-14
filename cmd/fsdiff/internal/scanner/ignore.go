@@ -29,6 +29,26 @@ func newPathIgnorer(userPatterns []string) *PathIgnorer {
 		"/Library/Caches", "/Users/*/Library/Caches",
 		"/private/var/folders", // macOS temp
 
+		// macOS - directories that trigger permission prompts
+		"/Library/Application Support/com.apple.TCC", // Privacy database
+		"/private/var/db/dslocal",                    // Directory services
+		"/private/var/db/uuidtext",                   // System diagnostics
+		"/Users/*/Library/Application Support/MobileSync",
+		"/Users/*/Library/Containers",
+		"/Users/*/Library/Group Containers",
+		"/Users/*/Library/Messages",
+		"/Users/*/Library/Mail",
+		"/Users/*/Library/Safari",
+		"/Users/*/Library/Calendars",
+		"/Users/*/Library/Reminders",
+		"/Users/*/Library/HomeKit",
+		"/Users/*/Library/IdentityServices",
+		"/Users/*/Library/Metadata/CoreSpotlight",
+		"/Users/*/Library/PersonalizationPortrait",
+		"/Users/*/Library/Suggestions",
+		"/Users/*/Pictures/Photos Library.photoslibrary",
+		"/Users/*/Library/Photos",
+
 		// Common dev/build artifacts
 		"/.cache", "node_modules",
 		".git", ".svn", ".hg", "__pycache__", ".pytest_cache",
