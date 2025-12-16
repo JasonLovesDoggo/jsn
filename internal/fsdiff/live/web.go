@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
 
 	"pkg.jsn.cam/jsn/internal/fsdiff/live/priority"
+	"pkg.jsn.cam/jsn/internal/fsdiff/ui"
 )
 
 // WebServer provides a web UI for the recording session
@@ -43,15 +45,22 @@ func NewWebServer(session *Session, addr string) *WebServer {
 func (ws *WebServer) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 
-	// Serve static assets (htmx from CDN, inline CSS)
-	mux.HandleFunc("GET /", ws.handleIndex)
-	mux.HandleFunc("GET /changes", ws.handleChanges)
-	mux.HandleFunc("GET /changes/{idx}", ws.handleChangeDetail)
-	mux.HandleFunc("GET /content/{hash}", ws.handleContent)
+	// API endpoints
 	mux.HandleFunc("GET /api/changes", ws.handleAPIChanges)
+	mux.HandleFunc("GET /content/{hash}", ws.handleContent)
 	mux.HandleFunc("GET /events", ws.handleSSE)
 	mux.HandleFunc("GET /export", ws.handleExport)
+
+	// Legacy htmx endpoints (can be removed later)
+	mux.HandleFunc("GET /changes", ws.handleChanges)
+	mux.HandleFunc("GET /changes/{idx}", ws.handleChangeDetail)
 	mux.HandleFunc("GET /stats", ws.handleStats)
+
+	// Serve embedded Svelte UI
+	distFS, _ := fs.Sub(ui.Dist, "dist")
+	fileServer := http.FileServer(http.FS(distFS))
+	mux.Handle("GET /assets/", fileServer)
+	mux.HandleFunc("GET /", ws.handleSPA(distFS))
 
 	ws.server = &http.Server{
 		Addr:         ws.addr,
@@ -74,11 +83,13 @@ func (ws *WebServer) Start(ctx context.Context) error {
 	return nil
 }
 
-// handleIndex serves the main page
-func (ws *WebServer) handleIndex(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	component := Layout(ws.session.config.RootPath)
-	component.Render(r.Context(), w)
+// handleSPA returns a handler that serves index.html for SPA routing
+func (ws *WebServer) handleSPA(fsys fs.FS) http.HandlerFunc {
+	indexHTML, _ := fs.ReadFile(fsys, "index.html")
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(indexHTML)
+	}
 }
 
 // handleChanges returns the changes list as HTML partial

@@ -1,0 +1,72 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Backgrounds - warm black (stone), not clinical */
+  --color-bg-1: #0c0a09;
+  --color-bg-2: #1c1917;
+  --color-bg-3: #292524;
+
+  /* Text - high contrast but not pure white */
+  --color-fg-1: #fafaf9;
+  --color-fg-2: #a8a29e;
+  --color-fg-3: #57534e;
+
+  /* Critical - unmissable */
+  --color-critical: #f87171;
+  --color-critical-dim: #451a1a;
+
+  /* Interesting - visible but not alarming */
+  --color-warn: #fbbf24;
+  --color-warn-dim: #1c1a0e;
+
+  /* Change types */
+  --color-added: #4ade80;
+  --color-modified: #fb923c;
+  --color-deleted: #f472b6;
+
+  /* Bulk/noise - should disappear */
+  --color-muted: #78716c;
+  --color-muted-dim: #0f0e0d;
+
+  /* Interactive accent */
+  --color-accent: #38bdf8;
+  --color-accent-dim: #0c1a24;
+
+  /* Badges */
+  --color-suid: #ef4444;
+  --color-cap: #a855f7;
+  --color-exec: #3b82f6;
+  --color-immutable: #ec4899;
+}
+
+html {
+  @apply bg-bg-1 text-fg-1;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-bg-1;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-bg-3 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-fg-3;
+}
+
+/* Focus styles */
+:focus-visible {
+  @apply outline-none ring-1 ring-accent ring-offset-1 ring-offset-bg-1;
+}
+
+/* Selection */
+::selection {
+  @apply bg-accent/30 text-fg-1;
+}

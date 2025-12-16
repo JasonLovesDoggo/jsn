@@ -185,19 +185,6 @@ func (s *Session) rebuildCurrentState() *snapshot.Snapshot {
 
 // Start begins the recording session
 func (s *Session) Start(ctx context.Context) error {
-	// Check if resuming or starting fresh
-	if s.store.HasBaseline() {
-		if err := s.Resume(); err != nil {
-			return fmt.Errorf("resume: %w", err)
-		}
-		fmt.Printf("Resuming recording session...\n")
-	} else {
-		// Create initial baseline
-		if err := s.createBaseline(); err != nil {
-			return fmt.Errorf("create baseline: %w", err)
-		}
-	}
-
 	// Set up signal handling
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -212,7 +199,7 @@ func (s *Session) Start(ctx context.Context) error {
 		cancel()
 	}()
 
-	// Start web server if configured
+	// Start web server immediately if configured
 	if s.config.WebAddr != "" {
 		webServer := NewWebServer(s, s.config.WebAddr)
 		go func() {
@@ -220,6 +207,19 @@ func (s *Session) Start(ctx context.Context) error {
 				fmt.Printf("Web server error: %v\n", err)
 			}
 		}()
+	}
+
+	// Check if resuming or starting fresh
+	if s.store.HasBaseline() {
+		if err := s.Resume(); err != nil {
+			return fmt.Errorf("resume: %w", err)
+		}
+		fmt.Printf("Resuming recording session...\n")
+	} else {
+		// Create initial baseline
+		if err := s.createBaseline(); err != nil {
+			return fmt.Errorf("create baseline: %w", err)
+		}
 	}
 
 	// Start recording loop
