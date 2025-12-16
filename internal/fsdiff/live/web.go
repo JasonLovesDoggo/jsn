@@ -192,7 +192,8 @@ func (ws *WebServer) handleAPIChanges(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		p := priority.Classify(c.Path, c.Mode, c.Type == ChangeAdded, c.BulkID > 0)
+		isDir := c.Mode&0o40000 != 0 // S_IFDIR bit
+		p := priority.Classify(c.Path, c.Mode, isDir, c.BulkID > 0)
 
 		switch priorityFilter {
 		case "critical":

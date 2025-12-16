@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pmezard/go-difflib/difflib"
 	diff2 "pkg.jsn.cam/jsn/internal/fsdiff/diff"
 	"pkg.jsn.cam/jsn/internal/fsdiff/scanner"
 	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
@@ -36,6 +37,8 @@ type Change struct {
 	Hash       string     `json:"hash,omitempty"`
 	Size       int64      `json:"size,omitempty"`
 	Mode       uint32     `json:"mode,omitempty"`
+	OldMode    uint32     `json:"oldMode,omitempty"` // previous mode for modified files
+	OldSize    int64      `json:"oldSize,omitempty"` // previous size for modified files
 	ContentKey string     `json:"content,omitempty"` // hash into content bucket
 	BulkID     int        `json:"bulk,omitempty"`    // 0 if not part of bulk, >0 is bulk group ID
 	Diff       string     `json:"diff,omitempty"`    // unified diff for modified files
@@ -66,8 +69,8 @@ type ScanProgress struct {
 type Config struct {
 	RootPath       string
 	Interval       time.Duration
-	DBPath         string
 	Workers        int
+	DBPath         string
 	Verbose        bool
 	IgnorePatterns []string
 	CaptureContent bool     // capture text file contents
@@ -86,7 +89,7 @@ type Session struct {
 	changes  []*Change
 	mu       sync.RWMutex
 
-	// Scan configuration
+	// Scan configuration or
 	scanConfig *scanner.Config
 	diffConfig *diff2.Config
 
@@ -480,6 +483,8 @@ func (s *Session) scan(ctx context.Context) error {
 			Hash:      record.Hash,
 			Size:      record.Size,
 			Mode:      uint32(record.Mode),
+			OldMode:   uint32(detail.OldRecord.Mode),
+			OldSize:   detail.OldRecord.Size,
 		}
 		newChanges = append(newChanges, change)
 
@@ -496,6 +501,15 @@ func (s *Session) scan(ctx context.Context) error {
 			change.Diff = s.computeDiff(path, detail.OldRecord.Hash)
 			if change.Diff == "" && s.config.Verbose {
 				fmt.Printf("  WARNING: Diff computation returned empty for %s\n", path)
+			} else if s.config.Verbose {
+				lineCount := strings.Count(change.Diff, "\n")
+				fmt.Printf("  Generated diff with %d lines (%d bytes)\n", lineCount, len(change.Diff))
+				// Show first 200 chars to verify newlines
+				preview := change.Diff
+				if len(preview) > 200 {
+					preview = preview[:200]
+				}
+				fmt.Printf("  Diff preview: %q\n", preview)
 			}
 		} else if s.config.Verbose && s.shouldComputeDiff(path) {
 			fmt.Printf("  Skipping diff for %s: OldRecord=%v, OldHash=%q\n", path, detail.OldRecord != nil, func() string {
@@ -863,44 +877,50 @@ func (s *Session) computeDiff(path, oldHash string) string {
 		return ""
 	}
 
-	// Use simple line-by-line diff
-	oldLines := strings.Split(string(oldContent), "\n")
-	newLines := strings.Split(string(newContent), "\n")
+	// Split into lines - difflib expects lines WITH trailing \n
+	// Use SplitAfter to keep the newlines
+	oldText := string(oldContent)
+	newText := string(newContent)
+
+	// Ensure content ends with newline for consistent splitting
+	if !strings.HasSuffix(oldText, "\n") {
+		oldText += "\n"
+	}
+	if !strings.HasSuffix(newText, "\n") {
+		newText += "\n"
+	}
+
+	oldLines := strings.SplitAfter(oldText, "\n")
+	newLines := strings.SplitAfter(newText, "\n")
+
+	// Remove empty last element if present
+	if len(oldLines) > 0 && oldLines[len(oldLines)-1] == "" {
+		oldLines = oldLines[:len(oldLines)-1]
+	}
+	if len(newLines) > 0 && newLines[len(newLines)-1] == "" {
+		newLines = newLines[:len(newLines)-1]
+	}
 
 	return generateUnifiedDiff(path, oldLines, newLines)
 }
 
-// generateUnifiedDiff creates a simple unified diff
+// generateUnifiedDiff creates a proper unified diff using go-difflib
 func generateUnifiedDiff(path string, oldLines, newLines []string) string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("--- a/%s\n", path))
-	sb.WriteString(fmt.Sprintf("+++ b/%s\n", path))
+	var buf strings.Builder
 
-	// Simple diff: show removed and added lines
-	// This is a basic implementation - for complex diffs use go-difflib
-	oldSet := make(map[string]bool)
-	for _, line := range oldLines {
-		oldSet[line] = true
-	}
-	newSet := make(map[string]bool)
-	for _, line := range newLines {
-		newSet[line] = true
+	diff := difflib.UnifiedDiff{
+		A:        oldLines,
+		B:        newLines,
+		FromFile: "a/" + path,
+		ToFile:   "b/" + path,
+		Context:  3,
 	}
 
-	// Lines removed (in old but not in new)
-	for _, line := range oldLines {
-		if !newSet[line] {
-			sb.WriteString(fmt.Sprintf("-%s\n", line))
-		}
-	}
-	// Lines added (in new but not in old)
-	for _, line := range newLines {
-		if !oldSet[line] {
-			sb.WriteString(fmt.Sprintf("+%s\n", line))
-		}
+	if err := difflib.WriteUnifiedDiff(&buf, diff); err != nil {
+		return ""
 	}
 
-	return sb.String()
+	return buf.String()
 }
 
 // Helper functions

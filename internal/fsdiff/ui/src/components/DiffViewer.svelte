@@ -17,7 +17,10 @@
     let lineNum = 0;
 
     for (const line of lines) {
-      if (line.startsWith('@@')) {
+      // Skip file header lines (---, +++)
+      if (line.startsWith('---') || line.startsWith('+++')) {
+        continue;
+      } else if (line.startsWith('@@')) {
         result.push({ type: 'header', text: line });
         const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)/);
         if (match) {
@@ -41,9 +44,29 @@
   }
 
   const parsedLines = $derived(parseDiff(diff));
+
+  // Debug state
+  let showRaw = $state(false);
 </script>
 
 <div class="font-mono text-sm">
+  <div class="px-3 py-2 border-b border-bg-3 flex items-center justify-between">
+    <span class="text-xs text-fg-3">
+      {parsedLines.length} lines parsed
+    </span>
+    <button
+      type="button"
+      class="text-xs px-2 py-1 rounded bg-bg-3 text-fg-2 hover:bg-bg-3/80"
+      onclick={() => (showRaw = !showRaw)}
+    >
+      {showRaw ? 'Parsed' : 'Raw'}
+    </button>
+  </div>
+
+  {#if showRaw}
+    <pre class="p-3 text-xs text-fg-1 whitespace-pre-wrap overflow-auto">{diff}</pre>
+  {:else}
+    <div>
   {#each parsedLines as line, i (i)}
     {#if line.type === 'header'}
       <div class="px-3 py-1 bg-accent/20 text-accent border-y border-bg-3">
@@ -77,4 +100,6 @@
       </div>
     {/if}
   {/each}
+    </div>
+  {/if}
 </div>

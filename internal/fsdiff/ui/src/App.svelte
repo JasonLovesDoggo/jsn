@@ -153,13 +153,16 @@
       ui.update((s) => ({ ...s, live: true }));
     };
 
-    // Poll config every 5 seconds for countdown accuracy
-    const configInterval = setInterval(loadConfig, 5000);
-
     return () => {
       es.close();
-      clearInterval(configInterval);
     };
+  });
+
+  // Poll config - faster during scans for progress updates
+  $effect(() => {
+    const interval = config?.scanning ? 500 : 3000;
+    const timer = setInterval(loadConfig, interval);
+    return () => clearInterval(timer);
   });
 </script>
 
