@@ -40,15 +40,16 @@ var (
 // Parameters:
 //   - path: file path
 //   - mode: file mode bits
-//   - isNew: true if file was added
+//   - isDir: true if this is a directory
 //   - isBulk: true if part of bulk operation
-func Classify(path string, mode uint32, isNew, isBulk bool) Level {
+func Classify(path string, mode uint32, isDir, isBulk bool) Level {
+	// Bulk changes are noise (but tracked separately in UI)
 	if isBulk {
 		return Noise
 	}
 
-	// setuid/setgid bits
-	if mode&0o4000 != 0 || mode&0o2000 != 0 {
+	// setuid/setgid bits (only meaningful for files, not directories)
+	if !isDir && (mode&0o4000 != 0 || mode&0o2000 != 0) {
 		return Critical
 	}
 
@@ -64,12 +65,8 @@ func Classify(path string, mode uint32, isNew, isBulk bool) Level {
 		}
 	}
 
-	if isNew {
-		return Interesting
-	}
-
-	// executable
-	if mode&0o111 != 0 {
+	// Executable files (not directories - dirs have +x for traversal which isn't security-relevant)
+	if !isDir && mode&0o111 != 0 {
 		return Interesting
 	}
 
