@@ -58,7 +58,10 @@ func (ws *WebServer) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /export", ws.handleExport)
 
 	// Serve embedded Svelte UI
-	distFS, _ := fs.Sub(ui.Dist, "dist")
+	distFS, err := fs.Sub(ui.Dist, "dist")
+	if err != nil {
+		return fmt.Errorf("failed to create dist filesystem: %w", err)
+	}
 	fileServer := http.FileServer(http.FS(distFS))
 	mux.Handle("GET /assets/", fileServer)
 	mux.HandleFunc("GET /", ws.handleSPA(distFS))
@@ -86,10 +89,19 @@ func (ws *WebServer) Start(ctx context.Context) error {
 
 // handleSPA returns a handler that serves index.html for SPA routing
 func (ws *WebServer) handleSPA(fsys fs.FS) http.HandlerFunc {
-	indexHTML, _ := fs.ReadFile(fsys, "index.html")
+	indexHTML, err := fs.ReadFile(fsys, "index.html")
+	if err != nil {
+		// Log error and return a minimal handler
+		fmt.Fprintf(os.Stderr, "Warning: failed to read index.html: %v\n", err)
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "UI not available", http.StatusInternalServerError)
+		}
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(indexHTML)
+		if _, err := w.Write(indexHTML); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to write index.html: %v\n", err)
+		}
 	}
 }
 
@@ -382,7 +394,11 @@ func (ws *WebServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case change := <-clientChan:
-			data, _ := json.Marshal(change)
+			data, err := json.Marshal(change)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to marshal change: %v\n", err)
+				continue
+			}
 			fmt.Fprintf(w, "event: change\ndata: %s\n\n", data)
 			flusher.Flush()
 		}

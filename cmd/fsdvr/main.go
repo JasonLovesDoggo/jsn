@@ -31,8 +31,8 @@ var (
 	interval = flagr.Int("interval", "", 30, "Scan interval in seconds")
 	// 37387 = FSDVR (phone keypad mnemonic)
 	webAddr  = flagr.String("web", "", "localhost:37387", "Start web UI on address (default localhost:37387, use 'off' to disable)")
-	dbPath   = flagr.String("db", "", "", "Databsase path for session (default: ./session.db)")
-	export   = flagr.Bool("export", "", false, "Export sessiosn to JSON")
+	dbPath   = flagr.String("db", "", "", "Database path for session (default: ./session.db)")
+	export   = flagr.Bool("export", "", false, "Export session to JSON")
 	diffDirs = flagr.String("diff-dirs", "", "", "Comma-separated directories to compute diffs for (must be under root path)")
 )
 
