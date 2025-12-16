@@ -58,6 +58,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Warn if flags appear after positional argument (common mistake)
+	if len(args) > 1 {
+		for _, arg := range args[1:] {
+			if strings.HasPrefix(arg, "-") {
+				fmt.Printf("WARNING: Flag %q specified after path - it will be IGNORED!\n", arg)
+				fmt.Printf("         Put ALL flags BEFORE the path argument.\n")
+				fmt.Printf("         Example: fsdvr -v --diff-dirs=/path %s\n\n", args[0])
+			}
+		}
+	}
+
 	rootPath := args[0]
 
 	// Resolve absolute path
