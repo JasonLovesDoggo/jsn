@@ -3,6 +3,7 @@
 package live
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pmezard/go-difflib/difflib"
 	diff2 "pkg.jsn.cam/jsn/internal/fsdiff/diff"
@@ -937,41 +939,87 @@ func getIcon(t ChangeType) string {
 		return "?"
 	}
 }
-
 func isTextFile(path string) bool {
-	textExts := []string{
-		".txt", ".md", ".json", ".yaml", ".yml", ".toml",
-		".go", ".py", ".js", ".ts", ".jsx", ".tsx",
-		".html", ".css", ".scss", ".less",
-		".sh", ".bash", ".zsh", ".fish",
-		".c", ".h", ".cpp", ".hpp", ".rs",
-		".java", ".kt", ".scala",
-		".rb", ".php", ".pl", ".lua",
-		".sql", ".xml", ".csv",
-		".conf", ".cfg", ".ini", ".env",
-		".log", ".gitignore", ".dockerignore",
+	// Fast path: known text extensions
+	textExts := map[string]struct{}{
+		".txt": {}, ".md": {}, ".json": {}, ".yaml": {}, ".yml": {}, ".toml": {},
+		".go": {}, ".py": {}, ".js": {}, ".ts": {}, ".html": {}, ".css": {},
+		".sh": {}, ".conf": {}, ".cfg": {}, ".ini": {}, ".env": {}, ".log": {},
+	}
+	if _, ok := textExts[strings.ToLower(filepath.Ext(path))]; ok {
+		return true
 	}
 
-	ext := strings.ToLower(filepath.Ext(path))
-	for _, textExt := range textExts {
-		if ext == textExt {
-			return true
+	// Known extensionless config files
+	configFiles := map[string]struct{}{
+		"Makefile": {}, "Dockerfile": {}, "Vagrantfile": {},
+		".bashrc": {}, ".zshrc": {}, ".profile": {},
+		"passwd": {}, "shadow": {}, "group": {}, "hosts": {},
+		"fstab": {}, "crontab": {}, "sudoers": {},
+	}
+	if _, ok := configFiles[filepath.Base(path)]; ok {
+		return true
+	}
+
+	// Config-centric heuristic
+	if strings.HasPrefix(path, "/etc/") {
+		return isTextContent(path)
+	}
+
+	return false
+}
+
+func isTextContent(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	buf := make([]byte, 1024)
+	n, err := f.Read(buf)
+	if err != nil && n == 0 {
+		return false
+	}
+	s := buf[:n]
+
+	// Hard binary rejects (magic bytes)
+	if hasBinaryMagic(s) {
+		return false
+	}
+
+	// UTF-16 BOM support
+	if bytes.HasPrefix(s, []byte{0xFF, 0xFE}) || bytes.HasPrefix(s, []byte{0xFE, 0xFF}) {
+		return true
+	}
+
+	// UTF-8 validation
+	if !utf8.Valid(s) {
+		return false
+	}
+
+	printable := 0
+	for _, b := range s {
+		if b == '\n' || b == '\r' || b == '\t' || (b >= 32 && b <= 126) {
+			printable++
 		}
 	}
 
-	// Also check common config files without extensions
-	base := filepath.Base(path)
-	configFiles := []string{
-		"Makefile", "Dockerfile", "Vagrantfile",
-		".bashrc", ".zshrc", ".profile",
-		"passwd", "shadow", "group", "hosts",
-		"fstab", "crontab", "sudoers",
+	return float64(printable)/float64(len(s)) > 0.7
+}
+
+func hasBinaryMagic(b []byte) bool {
+	magics := [][]byte{
+		{0x7f, 'E', 'L', 'F'},  // ELF
+		{0x1f, 0x8b},           // gzip
+		{'P', 'K', 0x03, 0x04}, // zip
+		{0x89, 'P', 'N', 'G'},  // png
+		{'%', 'P', 'D', 'F'},   // pdf
 	}
-	for _, cf := range configFiles {
-		if base == cf {
+	for _, m := range magics {
+		if len(b) >= len(m) && bytes.Equal(b[:len(m)], m) {
 			return true
 		}
 	}
-
 	return false
 }
