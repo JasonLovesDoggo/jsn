@@ -30,9 +30,10 @@ var (
 	// Recording options
 	interval = flagr.Int("interval", "", 30, "Scan interval in seconds")
 	// 37387 = FSDVR (phone keypad mnemonic)
-	webAddr = flagr.String("web", "", "localhost:37387", "Start web UI on address (default localhost:37387, use 'off' to disable)")
-	dbPath  = flagr.String("db", "", "", "Databsase path for session (default: ./session.db)")
-	export  = flagr.Bool("export", "", false, "Export sessiosn to JSON")
+	webAddr  = flagr.String("web", "", "localhost:37387", "Start web UI on address (default localhost:37387, use 'off' to disable)")
+	dbPath   = flagr.String("db", "", "", "Databsase path for session (default: ./session.db)")
+	export   = flagr.Bool("export", "", false, "Export sessiosn to JSON")
+	diffDirs = flagr.String("diff-dirs", "", "", "Comma-separated directories to compute diffs for (must be under root path)")
 )
 
 func main() {
@@ -81,6 +82,9 @@ func main() {
 		webAddress = ""
 	}
 
+	// Parse diff directories (only include dirs under root path)
+	diffDirList := parseDiffDirs(*diffDirs, absPath)
+
 	// Create session config
 	config := &live.Config{
 		RootPath:       absPath,
@@ -91,6 +95,7 @@ func main() {
 		IgnorePatterns: ignorePatterns,
 		CaptureContent: true,
 		WebAddr:        webAddress,
+		DiffDirs:       diffDirList,
 	}
 
 	fmt.Printf("fsdvr v%s - Filesystem DVR\n", Version)
@@ -184,6 +189,32 @@ func parseIgnorePatterns(ignore string) []string {
 		pattern = strings.TrimSpace(pattern)
 		if pattern != "" {
 			result = append(result, pattern)
+		}
+	}
+	return result
+}
+
+func parseDiffDirs(dirs string, rootPath string) []string {
+	if dirs == "" {
+		return nil
+	}
+	parts := strings.Split(dirs, ",")
+	var result []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		// Resolve absolute path
+		absDir, err := filepath.Abs(p)
+		if err != nil {
+			continue
+		}
+		// Only include if under root path
+		if strings.HasPrefix(absDir, rootPath) {
+			result = append(result, absDir)
+		} else {
+			fmt.Printf("Warning: ignoring diff-dir %s (not under %s)\n", p, rootPath)
 		}
 	}
 	return result

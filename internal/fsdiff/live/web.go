@@ -47,6 +47,9 @@ func (ws *WebServer) Start(ctx context.Context) error {
 
 	// API endpoints
 	mux.HandleFunc("GET /api/changes", ws.handleAPIChanges)
+	mux.HandleFunc("GET /api/scans", ws.handleAPIScans)
+	mux.HandleFunc("GET /api/config", ws.handleGetConfig)
+	mux.HandleFunc("PUT /api/config", ws.handleUpdateConfig)
 	mux.HandleFunc("GET /content/{hash}", ws.handleContent)
 	mux.HandleFunc("GET /events", ws.handleSSE)
 	mux.HandleFunc("GET /export", ws.handleExport)
@@ -189,6 +192,7 @@ type APIChangesResponse struct {
 //   - until: unix timestamp
 //   - priority: "critical" | "interesting" | "all" (default: "all")
 //   - exclude_bulk: bool (default: true)
+//   - scanId: int (filter by scan ID)
 //   - limit: int (default: 1000)
 //   - offset: int (default: 0)
 func (ws *WebServer) handleAPIChanges(w http.ResponseWriter, r *http.Request) {
@@ -210,6 +214,13 @@ func (ws *WebServer) handleAPIChanges(w http.ResponseWriter, r *http.Request) {
 	excludeBulk := true
 	if eb := q.Get("exclude_bulk"); eb == "false" || eb == "0" {
 		excludeBulk = false
+	}
+
+	scanID := 0
+	if s := q.Get("scanId"); s != "" {
+		if parsed, err := strconv.Atoi(s); err == nil {
+			scanID = parsed
+		}
 	}
 
 	limit := 1000
@@ -236,6 +247,9 @@ func (ws *WebServer) handleAPIChanges(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if excludeBulk && c.BulkID > 0 {
+			continue
+		}
+		if scanID > 0 && c.ScanID != scanID {
 			continue
 		}
 
@@ -290,6 +304,57 @@ func parseTimestamp(s string) time.Time {
 		return t
 	}
 	return time.Time{}
+}
+
+// ConfigResponse is the response for /api/config
+type ConfigResponse struct {
+	Interval     int   `json:"interval"`     // seconds
+	LastScanTime int64 `json:"lastScanTime"` // unix ms
+	NextScanTime int64 `json:"nextScanTime"` // unix ms
+}
+
+// handleGetConfig returns current config and timing
+func (ws *WebServer) handleGetConfig(w http.ResponseWriter, r *http.Request) {
+	lastScan, nextScan, interval := ws.session.GetScanTiming()
+	resp := ConfigResponse{
+		Interval:     int(interval.Seconds()),
+		LastScanTime: lastScan.UnixMilli(),
+		NextScanTime: nextScan.UnixMilli(),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// ConfigUpdate is the request body for PUT /api/config
+type ConfigUpdate struct {
+	Interval int `json:"interval"` // seconds
+}
+
+// handleUpdateConfig updates the scan interval
+func (ws *WebServer) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
+	var update ConfigUpdate
+	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if update.Interval < 5 || update.Interval > 3600 {
+		http.Error(w, "interval must be 5-3600 seconds", http.StatusBadRequest)
+		return
+	}
+	ws.session.SetInterval(time.Duration(update.Interval) * time.Second)
+
+	// Return updated config
+	ws.handleGetConfig(w, r)
+}
+
+// handleAPIScans returns all scan metadata
+func (ws *WebServer) handleAPIScans(w http.ResponseWriter, r *http.Request) {
+	scans := ws.session.GetScans()
+	if scans == nil {
+		scans = []*Scan{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(scans)
 }
 
 // handleSSE handles Server-Sent Events for live updates

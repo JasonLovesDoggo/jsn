@@ -9,6 +9,7 @@ export const filters = writable<Filters>({
   priority: 'interesting',
   excludeBulk: true,
   search: '',
+  scanId: null,
 });
 
 export const ui = writable<UIState>({

@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { changes, filters, ui, filteredChanges, stats } from '$lib/stores';
-  import { fetchChanges, connectSSE } from '$lib/api';
+  import { fetchChanges, fetchConfig, fetchScans, connectSSE } from '$lib/api';
   import { createKeyboardHandler } from '$lib/utils';
-  import type { Change, Filters } from '$lib/types';
+  import type { Change, Config, Filters, Scan } from '$lib/types';
 
   import Header from './components/Header.svelte';
   import FiltersBar from './components/Filters.svelte';
@@ -11,6 +11,8 @@
   import FileViewer from './components/FileViewer.svelte';
 
   let viewingChange = $state<Change | null>(null);
+  let config = $state<Config | null>(null);
+  let scans = $state<Scan[]>([]);
 
   async function loadChanges() {
     ui.update((s) => ({ ...s, loading: true }));
@@ -73,11 +75,34 @@
     '/': () => document.querySelector<HTMLInputElement>('input[type="text"]')?.focus(),
   });
 
+  async function loadConfig() {
+    try {
+      config = await fetchConfig();
+    } catch (e) {
+      console.error('Failed to fetch config:', e);
+    }
+  }
+
+  async function loadScans() {
+    try {
+      scans = await fetchScans();
+    } catch (e) {
+      console.error('Failed to fetch scans:', e);
+    }
+  }
+
+  function handleConfigChange(newConfig: Config) {
+    config = newConfig;
+  }
+
   onMount(() => {
     loadChanges();
+    loadConfig();
+    loadScans();
 
     const es = connectSSE((data) => {
       changes.update((list) => [data as Change, ...list]);
+      loadScans();
     });
 
     es.onerror = () => {
@@ -88,15 +113,21 @@
       ui.update((s) => ({ ...s, live: true }));
     };
 
-    return () => es.close();
+    // Poll config every 5 seconds for countdown accuracy
+    const configInterval = setInterval(loadConfig, 5000);
+
+    return () => {
+      es.close();
+      clearInterval(configInterval);
+    };
   });
 </script>
 
 <svelte:window onkeydown={keyHandler} />
 
 <div class="h-screen flex flex-col">
-  <Header stats={$stats} live={$ui.live} />
-  <FiltersBar filters={$filters} onUpdate={handleFilterUpdate} />
+  <Header stats={$stats} live={$ui.live} {config} onConfigChange={handleConfigChange} />
+  <FiltersBar filters={$filters} {scans} onUpdate={handleFilterUpdate} />
 
   <main class="flex-1 overflow-hidden">
     <ChangeList

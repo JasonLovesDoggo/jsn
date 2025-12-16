@@ -1,12 +1,13 @@
 <script lang="ts">
-  import type { Filters } from '$lib/types';
+  import type { Filters, Scan } from '$lib/types';
 
   interface Props {
     filters: Filters;
+    scans: Scan[];
     onUpdate: (filters: Partial<Filters>) => void;
   }
 
-  let { filters, onUpdate }: Props = $props();
+  let { filters, scans, onUpdate }: Props = $props();
 
   const timeRanges = [
     { label: '5m', ms: 5 * 60 * 1000 },
@@ -72,6 +73,24 @@
       <option value="critical">Critical only</option>
       <option value="interesting">Critical + Interesting</option>
       <option value="all">All</option>
+    </select>
+  </div>
+
+  <div class="flex items-center gap-1">
+    <select
+      class="bg-bg-3 text-fg-2 text-xs px-2 py-1 rounded border-none outline-none cursor-pointer"
+      value={filters.scanId ?? ''}
+      onchange={(e) => {
+        const val = e.currentTarget.value;
+        onUpdate({ scanId: val ? Number(val) : null });
+      }}
+    >
+      <option value="">All scans</option>
+      {#each scans as scan (scan.id)}
+        <option value={scan.id}>
+          Scan #{scan.id} ({scan.added + scan.modified + scan.deleted} changes)
+        </option>
+      {/each}
     </select>
   </div>
 

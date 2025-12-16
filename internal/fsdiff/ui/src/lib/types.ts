@@ -2,6 +2,7 @@ export type ChangeType = 'added' | 'modified' | 'deleted';
 export type Priority = 'critical' | 'interesting' | 'noise';
 
 export interface Change {
+  scanId?: number;
   ts: string;
   path: string;
   type: ChangeType;
@@ -11,6 +12,23 @@ export interface Change {
   content?: string;
   bulk?: number;
   priority: Priority;
+  diff?: string;
+}
+
+export interface Scan {
+  id: number;
+  start: string;
+  end: string;
+  durationMs: number;
+  added: number;
+  modified: number;
+  deleted: number;
+}
+
+export interface Config {
+  interval: number;
+  lastScanTime: number;
+  nextScanTime: number;
 }
 
 export interface APIResponse {
@@ -26,6 +44,7 @@ export interface Filters {
   priority: 'critical' | 'interesting' | 'all';
   excludeBulk: boolean;
   search: string;
+  scanId: number | null;
 }
 
 export interface UIState {

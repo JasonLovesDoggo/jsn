@@ -2,6 +2,7 @@
   import type { Change } from '$lib/types';
   import { formatTime, formatSize, formatMode, resolveUid } from '$lib/utils';
   import { fetchContent } from '$lib/api';
+  import DiffViewer from './DiffViewer.svelte';
 
   interface Props {
     change: Change;
@@ -13,6 +14,9 @@
   let content = $state<string | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
+  let viewMode = $state<'content' | 'diff'>('content');
+
+  const hasDiff = $derived(!!change.diff);
 
   $effect(() => {
     if (change.content) {
@@ -66,17 +70,41 @@
       <h2 class="text-fg-1 font-mono text-sm truncate" title={change.path}>
         {change.path}
       </h2>
-      <button
-        type="button"
-        class="text-fg-3 hover:text-fg-1 text-sm px-2"
-        onclick={onClose}
-      >
-        ESC
-      </button>
+      <div class="flex items-center gap-3">
+        {#if hasDiff}
+          <div class="flex items-center gap-1 text-xs">
+            <button
+              type="button"
+              class="px-2 py-1 rounded transition-colors
+                     {viewMode === 'content' ? 'bg-accent text-bg-1' : 'text-fg-3 hover:text-fg-2 hover:bg-bg-3'}"
+              onclick={() => (viewMode = 'content')}
+            >
+              Content
+            </button>
+            <button
+              type="button"
+              class="px-2 py-1 rounded transition-colors
+                     {viewMode === 'diff' ? 'bg-accent text-bg-1' : 'text-fg-3 hover:text-fg-2 hover:bg-bg-3'}"
+              onclick={() => (viewMode = 'diff')}
+            >
+              Diff
+            </button>
+          </div>
+        {/if}
+        <button
+          type="button"
+          class="text-fg-3 hover:text-fg-1 text-sm px-2"
+          onclick={onClose}
+        >
+          ESC
+        </button>
+      </div>
     </div>
 
     <div class="flex-1 overflow-auto bg-bg-1">
-      {#if loading}
+      {#if viewMode === 'diff' && hasDiff}
+        <DiffViewer diff={change.diff!} />
+      {:else if loading}
         <div class="flex items-center justify-center h-48 text-fg-3">
           Loading...
         </div>

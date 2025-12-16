@@ -19,6 +19,7 @@ var (
 	bucketBaseline = []byte("baseline")
 	bucketChanges  = []byte("changes")
 	bucketContent  = []byte("content")
+	bucketScans    = []byte("scans")
 )
 
 // Store manages persistent storage for a recording session
@@ -45,7 +46,7 @@ func OpenStore(path string) (*Store, error) {
 
 	// Create buckets if they don't exist
 	err = db.Update(func(tx *bbolt.Tx) error {
-		for _, bucket := range [][]byte{bucketMeta, bucketBaseline, bucketChanges, bucketContent} {
+		for _, bucket := range [][]byte{bucketMeta, bucketBaseline, bucketChanges, bucketContent, bucketScans} {
 			if _, err := tx.CreateBucketIfNotExists(bucket); err != nil {
 				return err
 			}
@@ -253,6 +254,36 @@ func (s *Store) ContentExists(hash string) bool {
 		return nil
 	})
 	return exists
+}
+
+// AppendScan saves scan metadata
+func (s *Store) AppendScan(scan *Scan) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketScans)
+		key := []byte(fmt.Sprintf("%020d", scan.StartTime.UnixNano()))
+		data, err := json.Marshal(scan)
+		if err != nil {
+			return err
+		}
+		return b.Put(key, data)
+	})
+}
+
+// LoadScans loads all scan metadata from the database
+func (s *Store) LoadScans() ([]*Scan, error) {
+	var scans []*Scan
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketScans)
+		return b.ForEach(func(k, v []byte) error {
+			var scan Scan
+			if err := json.Unmarshal(v, &scan); err != nil {
+				return err
+			}
+			scans = append(scans, &scan)
+			return nil
+		})
+	})
+	return scans, err
 }
 
 // ExportJSON exports the entire session as JSON
