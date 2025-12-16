@@ -47,11 +47,26 @@ type ScanStats struct {
 	Errors         int64
 }
 
+// GetFilesProcessed returns the current count of processed files (atomic read)
+func (s *ScanStats) GetFilesProcessed() int64 {
+	return atomic.LoadInt64(&s.FilesProcessed)
+}
+
+// GetDirsProcessed returns the current count of processed directories (atomic read)
+func (s *ScanStats) GetDirsProcessed() int64 {
+	return atomic.LoadInt64(&s.DirsProcessed)
+}
+
 // ScanResult contains the scan outcome
 type ScanResult struct {
 	Snapshot    *snapshot.Snapshot
 	Interrupted bool
 	Error       error
+}
+
+// GetStats returns the scanner's current stats for progress tracking
+func (s *Scanner) GetStats() *ScanStats {
+	return s.stats
 }
 
 func New(config *Config) *Scanner {

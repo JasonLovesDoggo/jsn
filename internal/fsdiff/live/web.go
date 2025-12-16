@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -51,6 +52,7 @@ func (ws *WebServer) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/config", ws.handleGetConfig)
 	mux.HandleFunc("PUT /api/config", ws.handleUpdateConfig)
 	mux.HandleFunc("POST /api/scan", ws.handleTriggerScan)
+	mux.HandleFunc("POST /api/revert", ws.handleRevert)
 	mux.HandleFunc("GET /content/{hash}", ws.handleContent)
 	mux.HandleFunc("GET /events", ws.handleSSE)
 	mux.HandleFunc("GET /export", ws.handleExport)
@@ -248,8 +250,14 @@ type ConfigResponse struct {
 	Interval       int      `json:"interval"`       // seconds
 	LastScanTime   int64    `json:"lastScanTime"`   // unix ms
 	NextScanTime   int64    `json:"nextScanTime"`   // unix ms
-	Scanning       bool     `json:"scanning"`       // true if scan in progress
 	IgnorePatterns []string `json:"ignorePatterns"` // paths to ignore
+	// Progress fields
+	Scanning       bool  `json:"scanning"`       // true if scan in progress
+	FilesProcessed int64 `json:"filesProcessed"` // files scanned so far
+	TotalFiles     int64 `json:"totalFiles"`     // expected total (from previous scan)
+	Percent        int   `json:"percent"`        // progress percentage
+	Rate           int   `json:"rate"`           // files/sec
+	ScanStartedAt  int64 `json:"scanStartedAt"`  // unix ms when scan started
 }
 
 // handleGetConfig returns current config and timing
@@ -259,12 +267,20 @@ func (ws *WebServer) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	if ignorePatterns == nil {
 		ignorePatterns = []string{}
 	}
+
+	progress := ws.session.GetScanProgress()
+
 	resp := ConfigResponse{
 		Interval:       int(interval.Seconds()),
 		LastScanTime:   lastScan.UnixMilli(),
 		NextScanTime:   nextScan.UnixMilli(),
-		Scanning:       ws.session.IsScanning(),
 		IgnorePatterns: ignorePatterns,
+		Scanning:       progress.Scanning,
+		FilesProcessed: progress.FilesProcessed,
+		TotalFiles:     progress.TotalFiles,
+		Percent:        progress.Percent,
+		Rate:           progress.Rate,
+		ScanStartedAt:  progress.StartedAt,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -368,6 +384,45 @@ func (ws *WebServer) handleExport(w http.ResponseWriter, r *http.Request) {
 	if err := ws.session.store.ExportJSON(w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// RevertRequest is the request body for POST /api/revert
+type RevertRequest struct {
+	Path string `json:"path"`
+	Hash string `json:"hash"`
+}
+
+// handleRevert reverts a file to its stored content
+func (ws *WebServer) handleRevert(w http.ResponseWriter, r *http.Request) {
+	var req RevertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Path == "" || req.Hash == "" {
+		http.Error(w, "path and hash are required", http.StatusBadRequest)
+		return
+	}
+
+	// Load stored content
+	content, err := ws.session.GetStore().LoadContent(req.Hash)
+	if err != nil {
+		http.Error(w, "content not found for hash: "+req.Hash, http.StatusNotFound)
+		return
+	}
+
+	// Write content back to file
+	if err := os.WriteFile(req.Path, content, 0644); err != nil {
+		http.Error(w, "failed to write file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "reverted",
+		"path":   req.Path,
+	})
 }
 
 // broadcast sends changes to all SSE clients

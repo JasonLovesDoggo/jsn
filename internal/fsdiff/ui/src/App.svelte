@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { changes, filters, ui, filteredChanges, stats } from '$lib/stores';
-  import { fetchChanges, fetchConfig, fetchScans, connectSSE } from '$lib/api';
+  import { fetchChanges, fetchConfig, fetchScans, updateConfig, connectSSE } from '$lib/api';
   import { createKeyboardHandler } from '$lib/utils';
+  import { syncFiltersToURL, readFiltersFromURL } from '$lib/url';
   import type { Change, Config, Filters, Scan } from '$lib/types';
 
   import Header from './components/Header.svelte';
@@ -27,7 +28,11 @@
   }
 
   function handleFilterUpdate(update: Partial<Filters>) {
-    filters.update((f) => ({ ...f, ...update }));
+    filters.update((f) => {
+      const newFilters = { ...f, ...update };
+      syncFiltersToURL(newFilters);
+      return newFilters;
+    });
     loadChanges();
   }
 
@@ -93,9 +98,44 @@
 
   function handleConfigChange(newConfig: Config) {
     config = newConfig;
+    // Reload changes in case ignore patterns changed
+    loadChanges();
+  }
+
+  function handleScanComplete() {
+    // Refresh config and changes after manual scan
+    loadConfig();
+    loadChanges();
+    loadScans();
+  }
+
+  function handleFilterByScan(scanId: number) {
+    handleFilterUpdate({ scanId });
+  }
+
+  async function handleIgnore(path: string) {
+    if (!config) return;
+    if (config.ignorePatterns.includes(path)) return;
+
+    try {
+      const newConfig = await updateConfig({
+        ignorePatterns: [...config.ignorePatterns, path],
+      });
+      config = newConfig;
+      // Changes will be filtered on next fetch, but also filter locally for immediate feedback
+      loadChanges();
+    } catch (err) {
+      console.error('Failed to add ignore pattern:', err);
+    }
   }
 
   onMount(() => {
+    // Initialize filters from URL params
+    const urlFilters = readFiltersFromURL();
+    if (Object.keys(urlFilters).length > 0) {
+      filters.update((f) => ({ ...f, ...urlFilters }));
+    }
+
     loadChanges();
     loadConfig();
     loadScans();
@@ -126,7 +166,7 @@
 <svelte:window onkeydown={keyHandler} />
 
 <div class="h-screen flex flex-col">
-  <Header stats={$stats} live={$ui.live} {config} onConfigChange={handleConfigChange} />
+  <Header stats={$stats} live={$ui.live} {config} changes={$filteredChanges} onConfigChange={handleConfigChange} onScanComplete={handleScanComplete} />
   <FiltersBar filters={$filters} {scans} onUpdate={handleFilterUpdate} />
 
   <main class="flex-1 overflow-hidden">
@@ -135,10 +175,11 @@
       selectedIdx={$ui.selectedIdx}
       onSelect={handleSelect}
       onOpen={handleOpen}
+      onFilterByScan={handleFilterByScan}
     />
   </main>
 </div>
 
 {#if viewingChange}
-  <FileViewer change={viewingChange} onClose={handleCloseViewer} />
+  <FileViewer change={viewingChange} onClose={handleCloseViewer} onIgnore={handleIgnore} />
 {/if}

@@ -13,6 +13,7 @@ type PathIgnorer struct {
 }
 
 func newPathIgnorer(userPatterns []string) *PathIgnorer {
+
 	defaultPatterns := []string{
 		// Linux virtual/temp filesystems
 		"/proc", "/sys", "/dev", "/tmp", "/var/tmp", "/run", "/var/run",

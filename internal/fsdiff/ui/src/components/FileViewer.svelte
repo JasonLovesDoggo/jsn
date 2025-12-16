@@ -1,22 +1,54 @@
 <script lang="ts">
   import type { Change } from '$lib/types';
   import { formatTime, formatSize, formatMode, resolveUid } from '$lib/utils';
-  import { fetchContent } from '$lib/api';
+  import { fetchContent, revertFile } from '$lib/api';
   import DiffViewer from './DiffViewer.svelte';
 
   interface Props {
     change: Change;
     onClose: () => void;
+    onRevert?: () => void;
+    onIgnore?: (path: string) => void;
   }
 
-  let { change, onClose }: Props = $props();
+  let { change, onClose, onRevert, onIgnore }: Props = $props();
 
   let content = $state<string | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
   let viewMode = $state<'content' | 'diff'>('content');
+  let reverting = $state(false);
+  let revertError = $state<string | null>(null);
+  let showRevertConfirm = $state(false);
+  let showIgnorePanel = $state(false);
 
   const hasDiff = $derived(!!change.diff);
+  const canRevert = $derived(!!change.content);
+
+  // Generate all possible paths to ignore (file + all parent directories)
+  const ignorePaths = $derived.by(() => {
+    const paths: { path: string; label: string; type: 'file' | 'dir' }[] = [];
+    const fullPath = change.path;
+
+    // Add the full file path
+    const fileName = fullPath.split('/').pop() || fullPath;
+    paths.push({ path: fullPath, label: fileName, type: 'file' });
+
+    // Add each parent directory
+    const parts = fullPath.split('/').filter(Boolean);
+    let currentPath = '';
+    for (let i = 0; i < parts.length - 1; i++) {
+      currentPath += '/' + parts[i];
+      paths.push({
+        path: currentPath,
+        label: currentPath,
+        type: 'dir',
+      });
+    }
+
+    // Reverse so deepest paths come first
+    return paths.reverse();
+  });
 
   $effect(() => {
     if (change.content) {
@@ -40,7 +72,11 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
-      onClose();
+      if (showIgnorePanel) {
+        showIgnorePanel = false;
+      } else {
+        onClose();
+      }
     }
   }
 
@@ -52,6 +88,28 @@
 
   function getLines(text: string): string[] {
     return text.split('\n');
+  }
+
+  async function handleRevert() {
+    if (!change.content) return;
+    reverting = true;
+    revertError = null;
+    try {
+      await revertFile(change.path, change.content);
+      showRevertConfirm = false;
+      onRevert?.();
+      onClose();
+    } catch (e) {
+      revertError = e instanceof Error ? e.message : 'Revert failed';
+    } finally {
+      reverting = false;
+    }
+  }
+
+  function handleIgnore(path: string) {
+    onIgnore?.(path);
+    showIgnorePanel = false;
+    onClose();
   }
 </script>
 
@@ -130,12 +188,87 @@
       {/if}
     </div>
 
-    <div class="flex items-center gap-4 px-4 py-2 border-t border-bg-3 text-xs text-fg-3">
-      <span>Size: {formatSize(change.size)}</span>
-      <span>Modified: {formatTime(change.ts)}</span>
-      {#if change.mode !== undefined}
-        <span>Mode: {formatMode(change.mode)}</span>
-      {/if}
+    <div class="flex items-center justify-between px-4 py-2 border-t border-bg-3">
+      <div class="flex items-center gap-4 text-xs text-fg-3">
+        <span>Size: {formatSize(change.size)}</span>
+        <span>Modified: {formatTime(change.ts)}</span>
+        {#if change.mode !== undefined}
+          <span>Mode: {formatMode(change.mode)}</span>
+        {/if}
+      </div>
+
+      <div class="flex items-center gap-2">
+        {#if onIgnore}
+          <div class="relative">
+            <button
+              type="button"
+              class="px-2 py-1 text-xs rounded transition-colors
+                     {showIgnorePanel ? 'bg-critical text-white' : 'bg-bg-3 text-fg-2 hover:bg-critical/20 hover:text-critical'}"
+              onclick={() => (showIgnorePanel = !showIgnorePanel)}
+            >
+              Ignore
+            </button>
+
+            {#if showIgnorePanel}
+              <div class="absolute bottom-full right-0 mb-1 w-80 bg-bg-2 border border-bg-3 rounded-lg shadow-xl z-50">
+                <div class="px-3 py-2 border-b border-bg-3">
+                  <div class="text-xs text-fg-2 font-medium">Ignore this path</div>
+                  <div class="text-xs text-fg-3 mt-0.5">Select what to ignore:</div>
+                </div>
+                <div class="max-h-48 overflow-y-auto">
+                  {#each ignorePaths as item (item.path)}
+                    <button
+                      type="button"
+                      class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-3 transition-colors"
+                      onclick={() => handleIgnore(item.path)}
+                    >
+                      <span class="text-xs px-1.5 py-0.5 rounded {item.type === 'file' ? 'bg-accent/20 text-accent' : 'bg-warn/20 text-warn'}">
+                        {item.type === 'file' ? 'file' : 'dir'}
+                      </span>
+                      <span class="text-xs text-fg-1 font-mono truncate flex-1" title={item.path}>
+                        {item.path}
+                      </span>
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/if}
+
+        {#if canRevert}
+          {#if showRevertConfirm}
+            <span class="text-xs text-warn">Revert to this version?</span>
+            <button
+              type="button"
+              class="px-2 py-1 text-xs rounded bg-critical text-white hover:bg-critical/80 disabled:opacity-50"
+              onclick={handleRevert}
+              disabled={reverting}
+            >
+              {reverting ? 'Reverting...' : 'Yes, Revert'}
+            </button>
+            <button
+              type="button"
+              class="px-2 py-1 text-xs rounded bg-bg-3 text-fg-2 hover:bg-bg-3/80"
+              onclick={() => (showRevertConfirm = false)}
+            >
+              Cancel
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="px-2 py-1 text-xs rounded bg-bg-3 text-fg-2 hover:bg-warn hover:text-bg-1 transition-colors"
+              onclick={() => (showRevertConfirm = true)}
+              title="Revert file to this stored content"
+            >
+              Revert
+            </button>
+          {/if}
+          {#if revertError}
+            <span class="text-xs text-critical">{revertError}</span>
+          {/if}
+        {/if}
+      </div>
     </div>
   </div>
 </div>

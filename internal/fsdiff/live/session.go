@@ -52,6 +52,16 @@ type Scan struct {
 	Deleted   int       `json:"deleted"`
 }
 
+// ScanProgress represents the progress of an ongoing scan
+type ScanProgress struct {
+	Scanning       bool  `json:"scanning"`
+	FilesProcessed int64 `json:"filesProcessed"`
+	TotalFiles     int64 `json:"totalFiles"`
+	Percent        int   `json:"percent"`
+	Rate           int   `json:"rate"`
+	StartedAt      int64 `json:"startedAt"`
+}
+
 // Config holds session configuration
 type Config struct {
 	RootPath       string
@@ -86,7 +96,14 @@ type Session struct {
 	lastScanTime  time.Time
 	nextScanTime  time.Time
 	intervalCh    chan time.Duration
+	scanNowCh     chan struct{}
+	scanning      bool
 	scanMu        sync.RWMutex
+
+	// Progress tracking
+	currentScanner *scanner.Scanner
+	scanStartTime  time.Time
+	lastTotalFiles int64
 
 	// Callbacks for web UI
 	onChangeCallbacks []func([]*Change)
@@ -112,6 +129,7 @@ func NewSession(config *Config) (*Session, error) {
 		changes:    make([]*Change, 0),
 		scans:      make([]*Scan, 0),
 		intervalCh: make(chan time.Duration, 1),
+		scanNowCh:  make(chan struct{}, 1),
 		scanConfig: &scanner.Config{
 			Workers:        config.Workers,
 			Verbose:        false, // Quiet for incremental scans
@@ -276,6 +294,24 @@ func (s *Session) createBaseline() error {
 		return fmt.Errorf("save baseline: %w", err)
 	}
 
+	// Pre-capture content for files in DiffDirs so we can compute diffs later
+	if len(s.config.DiffDirs) > 0 {
+		fmt.Printf("DiffDirs configured: %v\n", s.config.DiffDirs)
+		captured := 0
+		checked := 0
+		for path, record := range snap.Files {
+			if !record.IsDir && s.shouldComputeDiff(path) {
+				checked++
+				s.captureContent(path, record, nil)
+				// Check if content was actually captured
+				if s.store.ContentExists(record.Hash) {
+					captured++
+				}
+			}
+		}
+		fmt.Printf("Pre-captured content for %d/%d files in diff directories\n", captured, checked)
+	}
+
 	return nil
 }
 
@@ -309,7 +345,12 @@ func (s *Session) recordingLoop(ctx context.Context) error {
 			s.scanMu.Unlock()
 			timer = time.NewTimer(newInterval)
 			fmt.Printf("Interval changed to %s\n", newInterval)
-		case <-timer.C:
+		case <-s.scanNowCh:
+			// Manual scan trigger
+			timer.Stop()
+			s.scanMu.Lock()
+			s.scanning = true
+			s.scanMu.Unlock()
 			if err := s.scan(ctx); err != nil {
 				if ctx.Err() != nil {
 					s.printSummary(startTime)
@@ -319,6 +360,24 @@ func (s *Session) recordingLoop(ctx context.Context) error {
 			}
 			// Reset timer for next scan
 			s.scanMu.Lock()
+			s.scanning = false
+			s.nextScanTime = time.Now().Add(s.config.Interval)
+			s.scanMu.Unlock()
+			timer = time.NewTimer(s.config.Interval)
+		case <-timer.C:
+			s.scanMu.Lock()
+			s.scanning = true
+			s.scanMu.Unlock()
+			if err := s.scan(ctx); err != nil {
+				if ctx.Err() != nil {
+					s.printSummary(startTime)
+					return nil
+				}
+				fmt.Printf("Scan error: %v\n", err)
+			}
+			// Reset timer for next scan
+			s.scanMu.Lock()
+			s.scanning = false
 			s.nextScanTime = time.Now().Add(s.config.Interval)
 			s.scanMu.Unlock()
 			timer.Reset(s.config.Interval)
@@ -356,7 +415,23 @@ func (s *Session) scan(ctx context.Context) error {
 
 	// Scan current filesystem
 	sc := scanner.New(scanConfig)
+
+	// Store scanner ref for progress tracking
+	s.scanMu.Lock()
+	s.currentScanner = sc
+	s.scanStartTime = scanStart
+	s.scanMu.Unlock()
+
 	newSnap, err := sc.ScanFilesystem(s.config.RootPath)
+
+	// Clear scanner ref and update lastTotalFiles
+	s.scanMu.Lock()
+	if newSnap != nil {
+		s.lastTotalFiles = int64(newSnap.Stats.FileCount + newSnap.Stats.DirCount)
+	}
+	s.currentScanner = nil
+	s.scanMu.Unlock()
+
 	if err != nil {
 		return fmt.Errorf("scan: %w", err)
 	}
@@ -415,7 +490,20 @@ func (s *Session) scan(ctx context.Context) error {
 
 		// Compute diff if in watched directory
 		if s.shouldComputeDiff(path) && detail.OldRecord != nil && detail.OldRecord.Hash != "" {
+			if s.config.Verbose {
+				fmt.Printf("  Computing diff for %s (old hash: %s)\n", path, detail.OldRecord.Hash[:8])
+			}
 			change.Diff = s.computeDiff(path, detail.OldRecord.Hash)
+			if change.Diff == "" && s.config.Verbose {
+				fmt.Printf("  WARNING: Diff computation returned empty for %s\n", path)
+			}
+		} else if s.config.Verbose && s.shouldComputeDiff(path) {
+			fmt.Printf("  Skipping diff for %s: OldRecord=%v, OldHash=%q\n", path, detail.OldRecord != nil, func() string {
+				if detail.OldRecord != nil {
+					return detail.OldRecord.Hash
+				}
+				return ""
+			}())
 		}
 	}
 
@@ -487,6 +575,7 @@ func (s *Session) scan(ctx context.Context) error {
 }
 
 // captureContent captures file content for text files
+// If change is nil, just stores content without updating a change record (for baseline capture)
 func (s *Session) captureContent(path string, record *snapshot.FileRecord, change *Change) {
 	// Skip if too large (>1MB)
 	if record.Size > 1024*1024 {
@@ -500,7 +589,9 @@ func (s *Session) captureContent(path string, record *snapshot.FileRecord, chang
 
 	// Skip if content already exists
 	if s.store.ContentExists(record.Hash) {
-		change.ContentKey = record.Hash
+		if change != nil {
+			change.ContentKey = record.Hash
+		}
 		return
 	}
 
@@ -511,7 +602,9 @@ func (s *Session) captureContent(path string, record *snapshot.FileRecord, chang
 	}
 
 	if err := s.store.SaveContent(record.Hash, content); err == nil {
-		change.ContentKey = record.Hash
+		if change != nil {
+			change.ContentKey = record.Hash
+		}
 	}
 }
 
@@ -631,6 +724,96 @@ func (s *Session) SetInterval(d time.Duration) {
 	}
 }
 
+// TriggerScan triggers an immediate scan
+func (s *Session) TriggerScan() {
+	select {
+	case s.scanNowCh <- struct{}{}:
+	default:
+		// Scan already pending
+	}
+}
+
+// IsScanning returns true if a scan is currently in progress
+func (s *Session) IsScanning() bool {
+	s.scanMu.RLock()
+	defer s.scanMu.RUnlock()
+	return s.scanning
+}
+
+// GetScanProgress returns the current scan progress
+func (s *Session) GetScanProgress() ScanProgress {
+	s.scanMu.RLock()
+	defer s.scanMu.RUnlock()
+
+	if !s.scanning || s.currentScanner == nil {
+		return ScanProgress{Scanning: false}
+	}
+
+	stats := s.currentScanner.GetStats()
+	files := stats.GetFilesProcessed()
+	elapsed := time.Since(s.scanStartTime).Seconds()
+
+	rate := 0
+	if elapsed > 0 {
+		rate = int(float64(files) / elapsed)
+	}
+
+	percent := 0
+	if s.lastTotalFiles > 0 {
+		percent = int(float64(files) / float64(s.lastTotalFiles) * 100)
+		if percent > 100 {
+			percent = 99 // Cap at 99% until scan completes
+		}
+	}
+
+	return ScanProgress{
+		Scanning:       true,
+		FilesProcessed: files,
+		TotalFiles:     s.lastTotalFiles,
+		Percent:        percent,
+		Rate:           rate,
+		StartedAt:      s.scanStartTime.UnixMilli(),
+	}
+}
+
+// GetIgnorePatterns returns the current ignore patterns
+func (s *Session) GetIgnorePatterns() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]string, len(s.config.IgnorePatterns))
+	copy(result, s.config.IgnorePatterns)
+	return result
+}
+
+// SetIgnorePatterns updates ignore patterns and filters existing changes
+func (s *Session) SetIgnorePatterns(patterns []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.config.IgnorePatterns = patterns
+	s.scanConfig.IgnorePatterns = patterns
+	s.diffConfig.IgnorePatterns = patterns
+
+	// Filter out existing changes that match new patterns
+	var filtered []*Change
+	for _, c := range s.changes {
+		if !s.matchesIgnorePattern(c.Path) {
+			filtered = append(filtered, c)
+		}
+	}
+	s.changes = filtered
+}
+
+// matchesIgnorePattern checks if path matches any ignore pattern (must hold lock)
+func (s *Session) matchesIgnorePattern(path string) bool {
+	for _, pattern := range s.config.IgnorePatterns {
+		if strings.HasPrefix(path, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
 // GetStore returns the underlying store
 func (s *Session) GetStore() *Store {
 	return s.store
@@ -666,11 +849,17 @@ func (s *Session) shouldComputeDiff(path string) bool {
 func (s *Session) computeDiff(path, oldHash string) string {
 	oldContent, err := s.store.LoadContent(oldHash)
 	if err != nil {
+		if s.config.Verbose {
+			fmt.Printf("  computeDiff: failed to load old content for hash %s: %v\n", oldHash[:8], err)
+		}
 		return ""
 	}
 
 	newContent, err := os.ReadFile(path)
 	if err != nil {
+		if s.config.Verbose {
+			fmt.Printf("  computeDiff: failed to read current file %s: %v\n", path, err)
+		}
 		return ""
 	}
 

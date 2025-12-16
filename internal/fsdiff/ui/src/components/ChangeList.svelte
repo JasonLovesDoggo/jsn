@@ -7,9 +7,10 @@
     selectedIdx: number | null;
     onSelect: (idx: number) => void;
     onOpen: (change: Change) => void;
+    onFilterByScan?: (scanId: number) => void;
   }
 
-  let { changes, selectedIdx, onSelect, onOpen }: Props = $props();
+  let { changes, selectedIdx, onSelect, onOpen, onFilterByScan }: Props = $props();
 
   // Group changes by priority
   function groupByPriority(items: Change[]) {
@@ -51,6 +52,7 @@
           selected={selectedIdx === i}
           onclick={() => onSelect(i)}
           ondblclick={() => onOpen(change)}
+          {onFilterByScan}
         />
       {/each}
     </div>
@@ -70,6 +72,7 @@
           selected={selectedIdx === idx}
           onclick={() => onSelect(idx)}
           ondblclick={() => onOpen(change)}
+          {onFilterByScan}
         />
       {/each}
     </div>
@@ -83,7 +86,7 @@
       <button
         type="button"
         class="text-xs text-fg-3 hover:text-fg-2"
-        onclick={() => showNoise = !showNoise}
+        onclick={() => (showNoise = !showNoise)}
       >
         {showNoise ? 'hide' : 'show'}
       </button>
@@ -97,6 +100,7 @@
             selected={selectedIdx === idx}
             onclick={() => onSelect(idx)}
             ondblclick={() => onOpen(change)}
+            {onFilterByScan}
           />
         {/each}
       </div>

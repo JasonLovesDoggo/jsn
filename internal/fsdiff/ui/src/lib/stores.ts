@@ -6,7 +6,7 @@ export const changes = writable<Change[]>([]);
 export const filters = writable<Filters>({
   since: Date.now() - 3600_000, // last hour
   until: null,
-  priority: 'interesting',
+  priority: 'all',
   excludeBulk: true,
   search: '',
   scanId: null,

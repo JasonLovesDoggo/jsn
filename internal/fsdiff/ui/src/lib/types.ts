@@ -29,6 +29,14 @@ export interface Config {
   interval: number;
   lastScanTime: number;
   nextScanTime: number;
+  ignorePatterns: string[];
+  // Progress fields
+  scanning: boolean;
+  filesProcessed: number;
+  totalFiles: number;
+  percent: number;
+  rate: number;
+  scanStartedAt: number;
 }
 
 export interface APIResponse {

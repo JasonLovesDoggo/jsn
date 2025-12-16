@@ -8,9 +8,17 @@
     selected?: boolean;
     onclick?: () => void;
     ondblclick?: () => void;
+    onFilterByScan?: (scanId: number) => void;
   }
 
-  let { change, selected = false, onclick, ondblclick }: Props = $props();
+  let { change, selected = false, onclick, ondblclick, onFilterByScan }: Props = $props();
+
+  function handleScanClick(e: MouseEvent) {
+    e.stopPropagation();
+    if (change.scanId && onFilterByScan) {
+      onFilterByScan(change.scanId);
+    }
+  }
 
   const typeColors: Record<string, string> = {
     added: 'text-added',
@@ -36,8 +44,6 @@
   }
 
   function getUid(): number | undefined {
-    // Mode contains uid in upper bits if available
-    // For now, just return 0 for root paths
     if (change.path.startsWith('/etc/') || change.path.startsWith('/usr/')) {
       return 0;
     }
@@ -48,13 +54,15 @@
   }
 </script>
 
-<button
-  type="button"
-  class="w-full flex items-center gap-3 px-3 py-2 text-left transition-colors
+<div
+  role="button"
+  tabindex="0"
+  class="group w-full flex items-center gap-3 px-3 py-2 text-left transition-colors
          hover:bg-bg-3 cursor-pointer {getBorderClass(change.priority)}
          {selected ? 'ring-1 ring-accent ring-inset' : ''}"
   {onclick}
   {ondblclick}
+  onkeydown={(e) => e.key === 'Enter' && onclick?.()}
 >
   <span class="text-fg-3 font-mono text-xs w-16 shrink-0">
     {formatTime(change.ts)}
@@ -73,6 +81,18 @@
   </span>
 
   <span class="flex items-center gap-1 shrink-0">
+    {#if change.scanId}
+      <span
+        role="button"
+        tabindex="0"
+        class="px-1.5 py-0.5 text-xs font-mono rounded bg-bg-3 text-fg-3 hover:bg-accent hover:text-bg-1 transition-colors cursor-pointer"
+        title="Filter to scan #{change.scanId}"
+        onclick={handleScanClick}
+        onkeydown={(e) => e.key === 'Enter' && handleScanClick(e as unknown as MouseEvent)}
+      >
+        #{change.scanId}
+      </span>
+    {/if}
     {#if hasSetuid(change.mode)}
       <Badge type="suid" />
     {/if}
@@ -84,7 +104,5 @@
     {/if}
   </span>
 
-  <span class="text-fg-3 text-sm shrink-0">
-    ›
-  </span>
-</button>
+  <span class="text-fg-3 text-sm shrink-0">›</span>
+</div>
