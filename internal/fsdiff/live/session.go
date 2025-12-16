@@ -3,7 +3,6 @@
 package live
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -13,72 +12,12 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unicode/utf8"
 
 	"github.com/pmezard/go-difflib/difflib"
 	diff2 "pkg.jsn.cam/jsn/internal/fsdiff/diff"
 	"pkg.jsn.cam/jsn/internal/fsdiff/scanner"
 	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
 )
-
-// ChangeType represents the type of filesystem change
-type ChangeType string
-
-const (
-	ChangeAdded    ChangeType = "added"
-	ChangeModified ChangeType = "modified"
-	ChangeDeleted  ChangeType = "deleted"
-)
-
-// Change represents a single filesystem change
-type Change struct {
-	ScanID     int        `json:"scanId,omitempty"` // which scan detected this change
-	Timestamp  time.Time  `json:"ts"`
-	Path       string     `json:"path"`
-	Type       ChangeType `json:"type"`
-	Hash       string     `json:"hash,omitempty"`
-	Size       int64      `json:"size,omitempty"`
-	Mode       uint32     `json:"mode,omitempty"`
-	OldMode    uint32     `json:"oldMode,omitempty"` // previous mode for modified files
-	OldSize    int64      `json:"oldSize,omitempty"` // previous size for modified files
-	ContentKey string     `json:"content,omitempty"` // hash into content bucket
-	BulkID     int        `json:"bulk,omitempty"`    // 0 if not part of bulk, >0 is bulk group ID
-	Diff       string     `json:"diff,omitempty"`    // unified diff for modified files
-}
-
-// Scan represents metadata for a single scan cycle
-type Scan struct {
-	ID        int       `json:"id"`
-	StartTime time.Time `json:"start"`
-	EndTime   time.Time `json:"end"`
-	Duration  int64     `json:"durationMs"`
-	Added     int       `json:"added"`
-	Modified  int       `json:"modified"`
-	Deleted   int       `json:"deleted"`
-}
-
-// ScanProgress represents the progress of an ongoing scan
-type ScanProgress struct {
-	Scanning       bool  `json:"scanning"`
-	FilesProcessed int64 `json:"filesProcessed"`
-	TotalFiles     int64 `json:"totalFiles"`
-	Percent        int   `json:"percent"`
-	Rate           int   `json:"rate"`
-	StartedAt      int64 `json:"startedAt"`
-}
-
-// Config holds session configuration
-type Config struct {
-	RootPath       string
-	Interval       time.Duration
-	Workers        int
-	DBPath         string
-	Verbose        bool
-	IgnorePatterns []string
-	CaptureContent bool     // capture text file contents
-	WebAddr        string   // address for web UI (empty = disabled)
-	DiffDirs       []string // directories to compute diffs for (must be under RootPath)
-}
 
 // Session represents a recording session
 type Session struct {
@@ -938,88 +877,4 @@ func getIcon(t ChangeType) string {
 	default:
 		return "?"
 	}
-}
-func isTextFile(path string) bool {
-	// Fast path: known text extensions
-	textExts := map[string]struct{}{
-		".txt": {}, ".md": {}, ".json": {}, ".yaml": {}, ".yml": {}, ".toml": {},
-		".go": {}, ".py": {}, ".js": {}, ".ts": {}, ".html": {}, ".css": {},
-		".sh": {}, ".conf": {}, ".cfg": {}, ".ini": {}, ".env": {}, ".log": {},
-	}
-	if _, ok := textExts[strings.ToLower(filepath.Ext(path))]; ok {
-		return true
-	}
-
-	// Known extensionless config files
-	configFiles := map[string]struct{}{
-		"Makefile": {}, "Dockerfile": {}, "Vagrantfile": {},
-		".bashrc": {}, ".zshrc": {}, ".profile": {},
-		"passwd": {}, "shadow": {}, "group": {}, "hosts": {},
-		"fstab": {}, "crontab": {}, "sudoers": {},
-	}
-	if _, ok := configFiles[filepath.Base(path)]; ok {
-		return true
-	}
-
-	// Config-centric heuristic
-	if strings.HasPrefix(path, "/etc/") {
-		return isTextContent(path)
-	}
-
-	return false
-}
-
-func isTextContent(path string) bool {
-	f, err := os.Open(path)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-
-	buf := make([]byte, 1024)
-	n, err := f.Read(buf)
-	if err != nil && n == 0 {
-		return false
-	}
-	s := buf[:n]
-
-	// Hard binary rejects (magic bytes)
-	if hasBinaryMagic(s) {
-		return false
-	}
-
-	// UTF-16 BOM support
-	if bytes.HasPrefix(s, []byte{0xFF, 0xFE}) || bytes.HasPrefix(s, []byte{0xFE, 0xFF}) {
-		return true
-	}
-
-	// UTF-8 validation
-	if !utf8.Valid(s) {
-		return false
-	}
-
-	printable := 0
-	for _, b := range s {
-		if b == '\n' || b == '\r' || b == '\t' || (b >= 32 && b <= 126) {
-			printable++
-		}
-	}
-
-	return float64(printable)/float64(len(s)) > 0.7
-}
-
-func hasBinaryMagic(b []byte) bool {
-	magics := [][]byte{
-		{0x7f, 'E', 'L', 'F'},  // ELF
-		{0x1f, 0x8b},           // gzip
-		{'P', 'K', 0x03, 0x04}, // zip
-		{0x89, 'P', 'N', 'G'},  // png
-		{'%', 'P', 'D', 'F'},   // pdf
-	}
-	for _, m := range magics {
-		if len(b) >= len(m) && bytes.Equal(b[:len(m)], m) {
-			return true
-		}
-	}
-	return false
 }
