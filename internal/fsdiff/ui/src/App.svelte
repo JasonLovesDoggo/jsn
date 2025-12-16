@@ -14,6 +14,7 @@
   let viewingChange = $state<Change | null>(null);
   let config = $state<Config | null>(null);
   let scans = $state<Scan[]>([]);
+  let duplicateTab = $state(false);
 
   async function loadChanges() {
     ui.update((s) => ({ ...s, loading: true }));
@@ -140,9 +141,16 @@
     loadConfig();
     loadScans();
 
-    const es = connectSSE((data) => {
-      changes.update((list) => [data as Change, ...list]);
-      loadScans();
+    const es = connectSSE({
+      onMessage: (data) => {
+        changes.update((list) => [data as Change, ...list]);
+        loadScans();
+      },
+      onError: (error) => {
+        if (error.type === 'duplicate_tab') {
+          duplicateTab = true;
+        }
+      },
     });
 
     es.onerror = () => {
@@ -160,7 +168,7 @@
 
   // Poll config - faster during scans for progress updates
   $effect(() => {
-    const interval = config?.scanning ? 500 : 3000;
+    const interval = config?.scanning ? 50 : 300;
     const timer = setInterval(loadConfig, interval);
     return () => clearInterval(timer);
   });
@@ -185,4 +193,25 @@
 
 {#if viewingChange}
   <FileViewer change={viewingChange} onClose={handleCloseViewer} onIgnore={handleIgnore} />
+{/if}
+
+{#if duplicateTab}
+  <div class="fixed inset-0 bg-bg-1 flex items-center justify-center z-[100]">
+    <div class="text-center max-w-md px-8">
+      <div class="text-6xl mb-4">
+        <span class="text-critical">!</span>
+      </div>
+      <h1 class="text-xl font-semibold text-fg-1 mb-2">Duplicate Tab</h1>
+      <p class="text-fg-3 mb-6">
+        Another browser tab is already connected to fsdvr. Please close this tab and use the existing one.
+      </p>
+      <button
+        type="button"
+        class="px-4 py-2 bg-critical text-white rounded hover:bg-critical/80"
+        onclick={() => window.close()}
+      >
+        Close This Tab
+      </button>
+    </div>
+  </div>
 {/if}

@@ -348,6 +348,18 @@ func (ws *WebServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if there's already a client connected
+	ws.clientsMu.RLock()
+	clientCount := len(ws.clients)
+	ws.clientsMu.RUnlock()
+
+	if clientCount > 0 {
+		// Send error and close
+		fmt.Fprintf(w, "event: error\ndata: {\"type\":\"duplicate_tab\",\"message\":\"Another tab is already open. Please close this tab.\"}\n\n")
+		flusher.Flush()
+		return
+	}
+
 	// Create client channel
 	clientChan := make(chan *Change, 100)
 	ws.clientsMu.Lock()

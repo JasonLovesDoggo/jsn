@@ -9,6 +9,8 @@ export interface Change {
   hash?: string;
   size?: number;
   mode?: number;
+  oldMode?: number;
+  oldSize?: number;
   content?: string;
   bulk?: number;
   priority: Priority;

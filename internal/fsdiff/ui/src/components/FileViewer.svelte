@@ -190,10 +190,28 @@
 
     <div class="flex items-center justify-between px-4 py-2 border-t border-bg-3">
       <div class="flex items-center gap-4 text-xs text-fg-3">
-        <span>Size: {formatSize(change.size)}</span>
+        {#if change.oldSize !== undefined && change.oldSize !== change.size}
+          <span>
+            Size: <span class="text-removed">{formatSize(change.oldSize)}</span>
+            <span class="text-fg-3">→</span>
+            <span class="text-added">{formatSize(change.size)}</span>
+          </span>
+        {:else}
+          <span>Size: {formatSize(change.size)}</span>
+        {/if}
+
         <span>Modified: {formatTime(change.ts)}</span>
+
         {#if change.mode !== undefined}
-          <span>Mode: {formatMode(change.mode)}</span>
+          {#if change.oldMode !== undefined && change.oldMode !== change.mode}
+            <span>
+              Mode: <span class="text-removed">{formatMode(change.oldMode)}</span>
+              <span class="text-fg-3">→</span>
+              <span class="text-added">{formatMode(change.mode)}</span>
+            </span>
+          {:else}
+            <span>Mode: {formatMode(change.mode)}</span>
+          {/if}
         {/if}
       </div>
 

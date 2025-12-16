@@ -89,15 +89,31 @@ export async function revertFile(path: string, hash: string): Promise<void> {
   }
 }
 
-export function connectSSE(onMessage: (data: unknown) => void): EventSource {
+export interface SSECallbacks {
+  onMessage: (data: unknown) => void;
+  onError?: (error: { type: string; message: string }) => void;
+}
+
+export function connectSSE(callbacks: SSECallbacks): EventSource {
   const es = new EventSource(`${BASE_URL}/events`);
 
   es.addEventListener('change', (e) => {
     try {
       const data = JSON.parse(e.data);
-      onMessage(data);
+      callbacks.onMessage(data);
     } catch {
       console.error('Failed to parse SSE message');
+    }
+  });
+
+  es.addEventListener('error', (e) => {
+    if (e instanceof MessageEvent && e.data) {
+      try {
+        const error = JSON.parse(e.data);
+        callbacks.onError?.(error);
+      } catch {
+        // Not a JSON error, ignore
+      }
     }
   });
 
