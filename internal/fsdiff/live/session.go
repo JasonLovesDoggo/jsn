@@ -13,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pmezard/go-difflib/difflib"
 	diff2 "pkg.jsn.cam/jsn/internal/fsdiff/diff"
 	"pkg.jsn.cam/jsn/internal/fsdiff/scanner"
 	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
@@ -30,7 +29,7 @@ type Session struct {
 	changes  []*Change
 	mu       sync.RWMutex
 
-	// Scan configuration or
+	// Scan configuration
 	scanConfig *scanner.Config
 	diffConfig *diff2.Config
 
@@ -56,7 +55,6 @@ type Session struct {
 
 // NewSession creates a new recording session
 func NewSession(config *Config) (*Session, error) {
-	// Ensure data directory exists
 	dir := filepath.Dir(config.DBPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
@@ -76,7 +74,7 @@ func NewSession(config *Config) (*Session, error) {
 		scanNowCh:  make(chan struct{}, 1),
 		scanConfig: &scanner.Config{
 			Workers:        config.Workers,
-			Verbose:        false, // Quiet for incremental scans
+			Verbose:        false,
 			IgnorePatterns: config.IgnorePatterns,
 		},
 		diffConfig: &diff2.Config{
@@ -88,45 +86,32 @@ func NewSession(config *Config) (*Session, error) {
 	return s, nil
 }
 
-// baselineScanConfig returns a scanner config for the initial baseline scan (with progress)
-func (s *Session) baselineScanConfig() *scanner.Config {
-	return &scanner.Config{
-		Workers:        s.config.Workers,
-		Verbose:        s.config.Verbose, // Show progress during baseline
-		IgnorePatterns: s.config.IgnorePatterns,
-	}
-}
-
 // Resume attempts to resume an existing session
 func (s *Session) Resume() error {
-	// Load metadata
 	meta, err := s.store.LoadMeta()
 	if err != nil {
 		return fmt.Errorf("load meta: %w", err)
 	}
 
-	// Verify root path matches (normalize paths for comparison)
+	// Verify root path matches
 	metaPath := filepath.Clean(meta.RootPath)
 	configPath := filepath.Clean(s.config.RootPath)
 	if metaPath != configPath {
 		return fmt.Errorf("root path mismatch: session=%s, config=%s", meta.RootPath, s.config.RootPath)
 	}
 
-	// Load baseline
 	baseline, err := s.store.LoadBaseline()
 	if err != nil {
 		return fmt.Errorf("load baseline: %w", err)
 	}
 	s.baseline = baseline
 
-	// Load and replay changes to build current state
 	changes, err := s.store.LoadChanges()
 	if err != nil {
 		return fmt.Errorf("load changes: %w", err)
 	}
 	s.changes = changes
 
-	// Rebuild current state from baseline + changes
 	s.current = s.rebuildCurrentState()
 
 	if s.config.Verbose {
@@ -137,41 +122,8 @@ func (s *Session) Resume() error {
 	return nil
 }
 
-// rebuildCurrentState applies all changes to baseline to get current state
-func (s *Session) rebuildCurrentState() *snapshot.Snapshot {
-	// Start with a copy of baseline
-	current := &snapshot.Snapshot{
-		SystemInfo: s.baseline.SystemInfo,
-		Files:      make(map[string]*snapshot.FileRecord),
-		Stats:      s.baseline.Stats,
-	}
-
-	// Copy all files from baseline
-	for path, record := range s.baseline.Files {
-		current.Files[path] = record
-	}
-
-	// Apply changes
-	for _, change := range s.changes {
-		switch change.Type {
-		case ChangeAdded, ChangeModified:
-			current.Files[change.Path] = &snapshot.FileRecord{
-				Path: change.Path,
-				Hash: change.Hash,
-				Size: change.Size,
-				Mode: os.FileMode(change.Mode),
-			}
-		case ChangeDeleted:
-			delete(current.Files, change.Path)
-		}
-	}
-
-	return current
-}
-
 // Start begins the recording session
 func (s *Session) Start(ctx context.Context) error {
-	// Set up signal handling
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -185,7 +137,7 @@ func (s *Session) Start(ctx context.Context) error {
 		cancel()
 	}()
 
-	// Start web server immediately if configured
+	// Start web server if configured
 	if s.config.WebAddr != "" {
 		webServer := NewWebServer(s, s.config.WebAddr)
 		go func() {
@@ -195,437 +147,24 @@ func (s *Session) Start(ctx context.Context) error {
 		}()
 	}
 
-	// Check if resuming or starting fresh
+	// Resume or create baseline
 	if s.store.HasBaseline() {
 		if err := s.Resume(); err != nil {
 			return fmt.Errorf("resume: %w", err)
 		}
 		fmt.Printf("Resuming recording session...\n")
 	} else {
-		// Create initial baseline
 		if err := s.createBaseline(); err != nil {
 			return fmt.Errorf("create baseline: %w", err)
 		}
 	}
 
-	// Start recording loop
 	return s.recordingLoop(ctx)
 }
 
-// createBaseline performs initial scan and saves as baseline
-func (s *Session) createBaseline() error {
-	// Use verbose config for baseline scan (shows progress)
-	sc := scanner.New(s.baselineScanConfig())
-	snap, err := sc.ScanFilesystem(s.config.RootPath)
-	if err != nil {
-		return fmt.Errorf("scan: %w", err)
-	}
-
-	s.baseline = snap
-	s.current = snap
-
-	// Save to store
-	meta := &Meta{
-		StartTime: time.Now(),
-		RootPath:  s.config.RootPath,
-		Interval:  int(s.config.Interval.Seconds()),
-	}
-	if err := s.store.SaveMeta(meta); err != nil {
-		return fmt.Errorf("save meta: %w", err)
-	}
-
-	if err := s.store.SaveBaseline(snap); err != nil {
-		return fmt.Errorf("save baseline: %w", err)
-	}
-
-	// Pre-capture content for files in DiffDirs so we can compute diffs later
-	if len(s.config.DiffDirs) > 0 {
-		fmt.Printf("DiffDirs configured: %v\n", s.config.DiffDirs)
-		captured := 0
-		checked := 0
-		for path, record := range snap.Files {
-			if !record.IsDir && s.shouldComputeDiff(path) {
-				checked++
-				s.captureContent(path, record, nil)
-				// Check if content was actually captured
-				if s.store.ContentExists(record.Hash) {
-					captured++
-				}
-			}
-		}
-		fmt.Printf("Pre-captured content for %d/%d files in diff directories\n", captured, checked)
-	}
-
-	return nil
-}
-
-// recordingLoop is the main recording loop
-func (s *Session) recordingLoop(ctx context.Context) error {
-	timer := time.NewTimer(s.config.Interval)
-	defer timer.Stop()
-
-	startTime := time.Now()
-
-	// Initialize timing
-	s.scanMu.Lock()
-	s.lastScanTime = startTime
-	s.nextScanTime = startTime.Add(s.config.Interval)
-	s.scanMu.Unlock()
-
-	fmt.Printf("Recording started. Press Ctrl+C to stop.\n")
-	fmt.Printf("Scanning every %s\n", s.config.Interval)
-
-	for {
-		select {
-		case <-ctx.Done():
-			s.printSummary(startTime)
-			return nil
-		case newInterval := <-s.intervalCh:
-			// Dynamic interval change
-			timer.Stop()
-			s.scanMu.Lock()
-			s.config.Interval = newInterval
-			s.nextScanTime = time.Now().Add(newInterval)
-			s.scanMu.Unlock()
-			timer = time.NewTimer(newInterval)
-			fmt.Printf("Interval changed to %s\n", newInterval)
-		case <-s.scanNowCh:
-			// Manual scan trigger
-			timer.Stop()
-			s.scanMu.Lock()
-			s.scanning = true
-			s.scanMu.Unlock()
-			if err := s.scan(ctx); err != nil {
-				if ctx.Err() != nil {
-					s.printSummary(startTime)
-					return nil
-				}
-				fmt.Printf("Scan error: %v\n", err)
-			}
-			// Reset timer for next scan
-			s.scanMu.Lock()
-			s.scanning = false
-			s.nextScanTime = time.Now().Add(s.config.Interval)
-			s.scanMu.Unlock()
-			timer = time.NewTimer(s.config.Interval)
-		case <-timer.C:
-			s.scanMu.Lock()
-			s.scanning = true
-			s.scanMu.Unlock()
-			if err := s.scan(ctx); err != nil {
-				if ctx.Err() != nil {
-					s.printSummary(startTime)
-					return nil
-				}
-				fmt.Printf("Scan error: %v\n", err)
-			}
-			// Reset timer for next scan
-			s.scanMu.Lock()
-			s.scanning = false
-			s.nextScanTime = time.Now().Add(s.config.Interval)
-			s.scanMu.Unlock()
-			timer.Reset(s.config.Interval)
-		}
-	}
-}
-
-// scan performs a single scan cycle
-func (s *Session) scan(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-
-	// Increment scan ID and update timing
-	s.scanMu.Lock()
-	s.currentScanID++
-	scanID := s.currentScanID
-	s.lastScanTime = time.Now()
-	s.scanMu.Unlock()
-
-	scanStart := time.Now()
-	if s.config.Verbose {
-		fmt.Printf("[%s] Starting scan #%d...\n", scanStart.Format("15:04:05"), scanID)
-	}
-
-	// Use incremental mode - skip files that haven't changed since last scan
-	scanConfig := &scanner.Config{
-		Workers:          s.config.Workers,
-		Verbose:          false, // Keep quiet during incremental
-		IgnorePatterns:   s.config.IgnorePatterns,
-		PreviousSnapshot: s.current, // INCREMENTAL MODE - skip unchanged files
-	}
-
-	// Scan current filesystem
-	sc := scanner.New(scanConfig)
-
-	// Store scanner ref for progress tracking
-	s.scanMu.Lock()
-	s.currentScanner = sc
-	s.scanStartTime = scanStart
-	s.scanMu.Unlock()
-
-	newSnap, err := sc.ScanFilesystem(s.config.RootPath)
-
-	// Clear scanner ref and update lastTotalFiles
-	s.scanMu.Lock()
-	if newSnap != nil {
-		s.lastTotalFiles = int64(newSnap.Stats.FileCount + newSnap.Stats.DirCount)
-	}
-	s.currentScanner = nil
-	s.scanMu.Unlock()
-
-	if err != nil {
-		return fmt.Errorf("scan: %w", err)
-	}
-
-	scanDuration := time.Since(scanStart)
-	if s.config.Verbose {
-		fmt.Printf("[%s] Scan completed in %v (%d files)\n",
-			time.Now().Format("15:04:05"), scanDuration.Round(time.Second), len(newSnap.Files))
-	}
-
-	// Diff against current state
-	d := diff2.New(s.diffConfig)
-	result := d.Compare(s.current, newSnap)
-
-	// Process changes
-	now := time.Now()
-	var newChanges []*Change
-
-	// Added files
-	for path, record := range result.Added {
-		change := &Change{
-			ScanID:    scanID,
-			Timestamp: now,
-			Path:      path,
-			Type:      ChangeAdded,
-			Hash:      record.Hash,
-			Size:      record.Size,
-			Mode:      uint32(record.Mode),
-		}
-		newChanges = append(newChanges, change)
-
-		// Capture content for text files
-		if s.config.CaptureContent {
-			s.captureContent(path, record, change)
-		}
-	}
-
-	// Modified files
-	for path, detail := range result.Modified {
-		record := detail.NewRecord
-		change := &Change{
-			ScanID:    scanID,
-			Timestamp: now,
-			Path:      path,
-			Type:      ChangeModified,
-			Hash:      record.Hash,
-			Size:      record.Size,
-			Mode:      uint32(record.Mode),
-			OldMode:   uint32(detail.OldRecord.Mode),
-			OldSize:   detail.OldRecord.Size,
-		}
-		newChanges = append(newChanges, change)
-
-		// Capture content for text files
-		if s.config.CaptureContent {
-			s.captureContent(path, record, change)
-		}
-
-		// Compute diff if in watched directory
-		if s.shouldComputeDiff(path) && detail.OldRecord != nil && detail.OldRecord.Hash != "" {
-			if s.config.Verbose {
-				fmt.Printf("  Computing diff for %s (old hash: %s)\n", path, detail.OldRecord.Hash[:8])
-			}
-			change.Diff = s.computeDiff(path, detail.OldRecord.Hash)
-			if change.Diff == "" && s.config.Verbose {
-				fmt.Printf("  WARNING: Diff computation returned empty for %s\n", path)
-			} else if s.config.Verbose {
-				lineCount := strings.Count(change.Diff, "\n")
-				fmt.Printf("  Generated diff with %d lines (%d bytes)\n", lineCount, len(change.Diff))
-				// Show first 200 chars to verify newlines
-				preview := change.Diff
-				if len(preview) > 200 {
-					preview = preview[:200]
-				}
-				fmt.Printf("  Diff preview: %q\n", preview)
-			}
-		} else if s.config.Verbose && s.shouldComputeDiff(path) {
-			fmt.Printf("  Skipping diff for %s: OldRecord=%v, OldHash=%q\n", path, detail.OldRecord != nil, func() string {
-				if detail.OldRecord != nil {
-					return detail.OldRecord.Hash
-				}
-				return ""
-			}())
-		}
-	}
-
-	// Deleted files
-	for path := range result.Deleted {
-		change := &Change{
-			ScanID:    scanID,
-			Timestamp: now,
-			Path:      path,
-			Type:      ChangeDeleted,
-		}
-		newChanges = append(newChanges, change)
-	}
-
-	// Count change types
-	added, modified, deleted := 0, 0, 0
-	for _, c := range newChanges {
-		switch c.Type {
-		case ChangeAdded:
-			added++
-		case ChangeModified:
-			modified++
-		case ChangeDeleted:
-			deleted++
-		}
-	}
-
-	// Create scan metadata
-	scanEnd := time.Now()
-	scan := &Scan{
-		ID:        scanID,
-		StartTime: scanStart,
-		EndTime:   scanEnd,
-		Duration:  scanEnd.Sub(scanStart).Milliseconds(),
-		Added:     added,
-		Modified:  modified,
-		Deleted:   deleted,
-	}
-
-	// Persist and update state
-	if len(newChanges) > 0 {
-		if err := s.store.AppendChanges(newChanges); err != nil {
-			return fmt.Errorf("save changes: %w", err)
-		}
-
-		s.mu.Lock()
-		s.changes = append(s.changes, newChanges...)
-		s.current = newSnap
-		s.mu.Unlock()
-
-		// Print changes
-		s.printChanges(newChanges)
-
-		// Notify callbacks
-		s.notifyCallbacks(newChanges)
-	}
-
-	// Track scan metadata (even if no changes)
-	s.scanMu.Lock()
-	s.scans = append(s.scans, scan)
-	s.scanMu.Unlock()
-
-	// Persist scan metadata
-	if err := s.store.AppendScan(scan); err != nil {
-		fmt.Printf("Warning: failed to save scan metadata: %v\n", err)
-	}
-
-	return nil
-}
-
-// captureContent captures file content for text files
-// If change is nil, just stores content without updating a change record (for baseline capture)
-func (s *Session) captureContent(path string, record *snapshot.FileRecord, change *Change) {
-	// Skip if too large (>1MB)
-	if record.Size > 1024*1024 {
-		return
-	}
-
-	// Skip if not a text file extension
-	if !isTextFile(path) {
-		return
-	}
-
-	// Skip if content already exists
-	if s.store.ContentExists(record.Hash) {
-		if change != nil {
-			change.ContentKey = record.Hash
-		}
-		return
-	}
-
-	// Read and save content
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return
-	}
-
-	if err := s.store.SaveContent(record.Hash, content); err == nil {
-		if change != nil {
-			change.ContentKey = record.Hash
-		}
-	}
-}
-
-// printChanges prints detected changes
-func (s *Session) printChanges(changes []*Change) {
-	for _, change := range changes {
-		icon := getIcon(change.Type)
-		fmt.Printf("%s %s %s\n", time.Now().Format("15:04:05"), icon, change.Path)
-	}
-}
-
-// printSummary prints session summary
-func (s *Session) printSummary(startTime time.Time) {
-	duration := time.Since(startTime)
-
-	fmt.Println("\n" + strings.Repeat("=", 60))
-	fmt.Println("RECORDING SUMMARY")
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Printf("Duration: %s\n", duration.Round(time.Second))
-	fmt.Printf("Total changes: %d\n", len(s.changes))
-
-	// Count by type
-	added, modified, deleted := 0, 0, 0
-	for _, c := range s.changes {
-		switch c.Type {
-		case ChangeAdded:
-			added++
-		case ChangeModified:
-			modified++
-		case ChangeDeleted:
-			deleted++
-		}
-	}
-	fmt.Printf("  Added:    %d\n", added)
-	fmt.Printf("  Modified: %d\n", modified)
-	fmt.Printf("  Deleted:  %d\n", deleted)
-
-	// Show most changed paths
-	pathCounts := make(map[string]int)
-	for _, c := range s.changes {
-		pathCounts[c.Path]++
-	}
-
-	fmt.Println("\nTop changed paths:")
-	// Simple top 5
-	type pathCount struct {
-		path  string
-		count int
-	}
-	var sorted []pathCount
-	for path, count := range pathCounts {
-		sorted = append(sorted, pathCount{path, count})
-	}
-	// Sort by count descending (simple bubble sort for small lists)
-	for i := 0; i < len(sorted); i++ {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[j].count > sorted[i].count {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
-	for i := 0; i < len(sorted) && i < 5; i++ {
-		fmt.Printf("  %d changes: %s\n", sorted[i].count, sorted[i].path)
-	}
-
-	fmt.Printf("\nSession saved to: %s\n", s.config.DBPath)
+// Close closes the session
+func (s *Session) Close() error {
+	return s.store.Close()
 }
 
 // OnChange registers a callback for new changes
@@ -648,7 +187,6 @@ func (s *Session) notifyCallbacks(changes []*Change) {
 func (s *Session) GetChanges() []*Change {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	// Return a copy to prevent data races
 	result := make([]*Change, len(s.changes))
 	copy(result, s.changes)
 	return result
@@ -675,7 +213,6 @@ func (s *Session) SetInterval(d time.Duration) {
 	select {
 	case s.intervalCh <- d:
 	default:
-		// Channel full, update will be picked up eventually
 	}
 }
 
@@ -684,7 +221,6 @@ func (s *Session) TriggerScan() {
 	select {
 	case s.scanNowCh <- struct{}{}:
 	default:
-		// Scan already pending
 	}
 }
 
@@ -693,42 +229,6 @@ func (s *Session) IsScanning() bool {
 	s.scanMu.RLock()
 	defer s.scanMu.RUnlock()
 	return s.scanning
-}
-
-// GetScanProgress returns the current scan progress
-func (s *Session) GetScanProgress() ScanProgress {
-	s.scanMu.RLock()
-	defer s.scanMu.RUnlock()
-
-	if !s.scanning || s.currentScanner == nil {
-		return ScanProgress{Scanning: false}
-	}
-
-	stats := s.currentScanner.GetStats()
-	files := stats.GetFilesProcessed()
-	elapsed := time.Since(s.scanStartTime).Seconds()
-
-	rate := 0
-	if elapsed > 0 {
-		rate = int(float64(files) / elapsed)
-	}
-
-	percent := 0
-	if s.lastTotalFiles > 0 {
-		percent = int(float64(files) / float64(s.lastTotalFiles) * 100)
-		if percent > 100 {
-			percent = 99 // Cap at 99% until scan completes
-		}
-	}
-
-	return ScanProgress{
-		Scanning:       true,
-		FilesProcessed: files,
-		TotalFiles:     s.lastTotalFiles,
-		Percent:        percent,
-		Rate:           rate,
-		StartedAt:      s.scanStartTime.UnixMilli(),
-	}
 }
 
 // GetIgnorePatterns returns the current ignore patterns
@@ -749,7 +249,6 @@ func (s *Session) SetIgnorePatterns(patterns []string) {
 	s.scanConfig.IgnorePatterns = patterns
 	s.diffConfig.IgnorePatterns = patterns
 
-	// Filter out existing changes that match new patterns
 	var filtered []*Change
 	for _, c := range s.changes {
 		if !s.matchesIgnorePattern(c.Path) {
@@ -759,7 +258,7 @@ func (s *Session) SetIgnorePatterns(patterns []string) {
 	s.changes = filtered
 }
 
-// matchesIgnorePattern checks if path matches any ignore pattern (must hold lock)
+// matchesIgnorePattern checks if path matches any ignore pattern
 func (s *Session) matchesIgnorePattern(path string) bool {
 	for _, pattern := range s.config.IgnorePatterns {
 		if strings.HasPrefix(path, pattern) {
@@ -772,109 +271,4 @@ func (s *Session) matchesIgnorePattern(path string) bool {
 // GetStore returns the underlying store
 func (s *Session) GetStore() *Store {
 	return s.store
-}
-
-// Close closes the session
-func (s *Session) Close() error {
-	return s.store.Close()
-}
-
-// shouldComputeDiff returns true if the path is in a watched diff directory
-func (s *Session) shouldComputeDiff(path string) bool {
-	if len(s.config.DiffDirs) == 0 {
-		return false
-	}
-	// Ensure path is under RootPath
-	if !strings.HasPrefix(path, s.config.RootPath) {
-		return false
-	}
-	for _, dir := range s.config.DiffDirs {
-		// DiffDir must also be under RootPath
-		if !strings.HasPrefix(dir, s.config.RootPath) {
-			continue
-		}
-		if strings.HasPrefix(path, dir) {
-			return true
-		}
-	}
-	return false
-}
-
-// computeDiff generates a unified diff between old content and current file
-func (s *Session) computeDiff(path, oldHash string) string {
-	oldContent, err := s.store.LoadContent(oldHash)
-	if err != nil {
-		if s.config.Verbose {
-			fmt.Printf("  computeDiff: failed to load old content for hash %s: %v\n", oldHash[:8], err)
-		}
-		return ""
-	}
-
-	newContent, err := os.ReadFile(path)
-	if err != nil {
-		if s.config.Verbose {
-			fmt.Printf("  computeDiff: failed to read current file %s: %v\n", path, err)
-		}
-		return ""
-	}
-
-	// Split into lines - difflib expects lines WITH trailing \n
-	// Use SplitAfter to keep the newlines
-	oldText := string(oldContent)
-	newText := string(newContent)
-
-	// Ensure content ends with newline for consistent splitting
-	if !strings.HasSuffix(oldText, "\n") {
-		oldText += "\n"
-	}
-	if !strings.HasSuffix(newText, "\n") {
-		newText += "\n"
-	}
-
-	oldLines := strings.SplitAfter(oldText, "\n")
-	newLines := strings.SplitAfter(newText, "\n")
-
-	// Remove empty last element if present
-	if len(oldLines) > 0 && oldLines[len(oldLines)-1] == "" {
-		oldLines = oldLines[:len(oldLines)-1]
-	}
-	if len(newLines) > 0 && newLines[len(newLines)-1] == "" {
-		newLines = newLines[:len(newLines)-1]
-	}
-
-	return generateUnifiedDiff(path, oldLines, newLines)
-}
-
-// generateUnifiedDiff creates a proper unified diff using go-difflib
-func generateUnifiedDiff(path string, oldLines, newLines []string) string {
-	var buf strings.Builder
-
-	diff := difflib.UnifiedDiff{
-		A:        oldLines,
-		B:        newLines,
-		FromFile: "a/" + path,
-		ToFile:   "b/" + path,
-		Context:  3,
-	}
-
-	if err := difflib.WriteUnifiedDiff(&buf, diff); err != nil {
-		return ""
-	}
-
-	return buf.String()
-}
-
-// Helper functions
-
-func getIcon(t ChangeType) string {
-	switch t {
-	case ChangeAdded:
-		return "+"
-	case ChangeModified:
-		return "~"
-	case ChangeDeleted:
-		return "-"
-	default:
-		return "?"
-	}
 }
