@@ -517,7 +517,3 @@ func (r *Result) ExportCSV() [][]string {
 
 	return rows
 }
-
-func maxin() {
-	fmt.Printf("hi")
-}
