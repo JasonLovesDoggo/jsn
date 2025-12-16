@@ -50,14 +50,10 @@ func (ws *WebServer) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/scans", ws.handleAPIScans)
 	mux.HandleFunc("GET /api/config", ws.handleGetConfig)
 	mux.HandleFunc("PUT /api/config", ws.handleUpdateConfig)
+	mux.HandleFunc("POST /api/scan", ws.handleTriggerScan)
 	mux.HandleFunc("GET /content/{hash}", ws.handleContent)
 	mux.HandleFunc("GET /events", ws.handleSSE)
 	mux.HandleFunc("GET /export", ws.handleExport)
-
-	// Legacy htmx endpoints (can be removed later)
-	mux.HandleFunc("GET /changes", ws.handleChanges)
-	mux.HandleFunc("GET /changes/{idx}", ws.handleChangeDetail)
-	mux.HandleFunc("GET /stats", ws.handleStats)
 
 	// Serve embedded Svelte UI
 	distFS, _ := fs.Sub(ui.Dist, "dist")
@@ -93,65 +89,6 @@ func (ws *WebServer) handleSPA(fsys fs.FS) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(indexHTML)
 	}
-}
-
-// handleChanges returns the changes list as HTML partial
-func (ws *WebServer) handleChanges(w http.ResponseWriter, r *http.Request) {
-	changes := ws.session.GetChanges()
-
-	// Apply filter if provided
-	filter := r.URL.Query().Get("filter")
-
-	// Reverse to show newest first
-	reversed := make([]*Change, len(changes))
-	for i, c := range changes {
-		reversed[len(changes)-1-i] = c
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	component := ChangesList(reversed, filter)
-	component.Render(r.Context(), w)
-}
-
-// handleChangeDetail returns detail for a specific change
-func (ws *WebServer) handleChangeDetail(w http.ResponseWriter, r *http.Request) {
-	idxStr := r.PathValue("idx")
-	idx, err := strconv.Atoi(idxStr)
-	if err != nil {
-		http.Error(w, "invalid index", http.StatusBadRequest)
-		return
-	}
-
-	// Get a safe copy of changes
-	changes := ws.session.GetChanges()
-	n := len(changes)
-	if idx < 0 || idx >= n {
-		http.Error(w, "index out of range", http.StatusBadRequest)
-		return
-	}
-
-	// The UI shows changes in reverse order (newest first)
-	// So idx 0 in UI = last element in slice
-	realIdx := n - 1 - idx
-	if realIdx < 0 || realIdx >= n {
-		http.Error(w, "index out of range", http.StatusBadRequest)
-		return
-	}
-
-	change := changes[realIdx]
-
-	// Load content if available
-	var content string
-	if change.ContentKey != "" {
-		data, err := ws.session.store.LoadContent(change.ContentKey)
-		if err == nil {
-			content = string(data)
-		}
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	component := ChangeDetail(change, content, idx)
-	component.Render(r.Context(), w)
 }
 
 // handleContent returns raw file content by hash
@@ -308,18 +245,26 @@ func parseTimestamp(s string) time.Time {
 
 // ConfigResponse is the response for /api/config
 type ConfigResponse struct {
-	Interval     int   `json:"interval"`     // seconds
-	LastScanTime int64 `json:"lastScanTime"` // unix ms
-	NextScanTime int64 `json:"nextScanTime"` // unix ms
+	Interval       int      `json:"interval"`       // seconds
+	LastScanTime   int64    `json:"lastScanTime"`   // unix ms
+	NextScanTime   int64    `json:"nextScanTime"`   // unix ms
+	Scanning       bool     `json:"scanning"`       // true if scan in progress
+	IgnorePatterns []string `json:"ignorePatterns"` // paths to ignore
 }
 
 // handleGetConfig returns current config and timing
 func (ws *WebServer) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	lastScan, nextScan, interval := ws.session.GetScanTiming()
+	ignorePatterns := ws.session.GetIgnorePatterns()
+	if ignorePatterns == nil {
+		ignorePatterns = []string{}
+	}
 	resp := ConfigResponse{
-		Interval:     int(interval.Seconds()),
-		LastScanTime: lastScan.UnixMilli(),
-		NextScanTime: nextScan.UnixMilli(),
+		Interval:       int(interval.Seconds()),
+		LastScanTime:   lastScan.UnixMilli(),
+		NextScanTime:   nextScan.UnixMilli(),
+		Scanning:       ws.session.IsScanning(),
+		IgnorePatterns: ignorePatterns,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -327,21 +272,31 @@ func (ws *WebServer) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 
 // ConfigUpdate is the request body for PUT /api/config
 type ConfigUpdate struct {
-	Interval int `json:"interval"` // seconds
+	Interval       *int     `json:"interval,omitempty"`       // seconds (optional)
+	IgnorePatterns []string `json:"ignorePatterns,omitempty"` // paths to ignore (optional)
 }
 
-// handleUpdateConfig updates the scan interval
+// handleUpdateConfig updates the scan interval and/or ignore patterns
 func (ws *WebServer) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 	var update ConfigUpdate
 	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	if update.Interval < 5 || update.Interval > 3600 {
-		http.Error(w, "interval must be 5-3600 seconds", http.StatusBadRequest)
-		return
+
+	// Update interval if provided
+	if update.Interval != nil {
+		if *update.Interval < 5 || *update.Interval > 3600 {
+			http.Error(w, "interval must be 5-3600 seconds", http.StatusBadRequest)
+			return
+		}
+		ws.session.SetInterval(time.Duration(*update.Interval) * time.Second)
 	}
-	ws.session.SetInterval(time.Duration(update.Interval) * time.Second)
+
+	// Update ignore patterns if provided (empty array clears patterns)
+	if update.IgnorePatterns != nil {
+		ws.session.SetIgnorePatterns(update.IgnorePatterns)
+	}
 
 	// Return updated config
 	ws.handleGetConfig(w, r)
@@ -355,6 +310,13 @@ func (ws *WebServer) handleAPIScans(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(scans)
+}
+
+// handleTriggerScan triggers an immediate scan
+func (ws *WebServer) handleTriggerScan(w http.ResponseWriter, r *http.Request) {
+	ws.session.TriggerScan()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
 }
 
 // handleSSE handles Server-Sent Events for live updates
@@ -406,27 +368,6 @@ func (ws *WebServer) handleExport(w http.ResponseWriter, r *http.Request) {
 	if err := ws.session.store.ExportJSON(w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-}
-
-// handleStats returns current stats as HTML partial
-func (ws *WebServer) handleStats(w http.ResponseWriter, r *http.Request) {
-	changes := ws.session.GetChanges()
-
-	added, modified, deleted := 0, 0, 0
-	for _, c := range changes {
-		switch c.Type {
-		case ChangeAdded:
-			added++
-		case ChangeModified:
-			modified++
-		case ChangeDeleted:
-			deleted++
-		}
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	component := Stats(len(changes), added, modified, deleted)
-	component.Render(r.Context(), w)
 }
 
 // broadcast sends changes to all SSE clients
