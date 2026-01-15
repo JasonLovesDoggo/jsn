@@ -63,7 +63,7 @@ func main() {
 	if startupStatus != "" {
 		m.setStatus(startupStatus, false)
 	}
-	if err := tea.NewProgram(m, tea.WithAltScreen()).Start(); err != nil {
+	if err := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion()).Start(); err != nil {
 		log.Fatalf("tui: %v", err)
 	}
 	fmt.Println()

@@ -304,6 +304,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
 	}
 	return m, nil
 }
@@ -447,6 +449,60 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		return m, m.openConfigCmd("")
 	}
+	return m, nil
+}
+
+func (m model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.inputMode != inputNone {
+		return m, nil
+	}
+	if msg.Button != tea.MouseButtonWheelUp && msg.Button != tea.MouseButtonWheelDown {
+		return m, nil
+	}
+	if m.width == 0 || m.height == 0 {
+		return m, nil
+	}
+
+	header := wrapBlock(m.viewHeader(), m.width)
+	footer := wrapBlock(m.viewFooter(), m.width)
+	headerHeight := lipgloss.Height(header)
+	footerHeight := lipgloss.Height(footer)
+	bodyHeight := m.height - headerHeight - footerHeight
+	if bodyHeight <= 0 {
+		return m, nil
+	}
+	if msg.Y < headerHeight || msg.Y >= headerHeight+bodyHeight {
+		return m, nil
+	}
+
+	delta := 1
+	if msg.Button == tea.MouseButtonWheelUp {
+		delta = -1
+	}
+
+	leftWidth, _ := panelWidths(m.width)
+	if msg.X < leftWidth {
+		m.focus = focusNamespaces
+		m.moveCursor(delta)
+		return m, nil
+	}
+
+	if m.activePane == paneDocs {
+		topHeight, _ := splitPaneHeights(bodyHeight)
+		if msg.Y < headerHeight+topHeight {
+			m.focus = focusDocsList
+			m.moveCursor(delta)
+			return m, nil
+		}
+		m.focus = focusDocsDetail
+		m.detailScroll = clampScroll(m.detailScroll+delta, m.detailMaxOffset())
+		return m, nil
+	}
+
+	if m.focus == focusNamespaces {
+		m.focus = focusDocsList
+	}
+	m.scrollActivePane(delta)
 	return m, nil
 }
 
