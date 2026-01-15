@@ -46,7 +46,7 @@ func (m model) viewHeader() string {
 	if profile == "" {
 		profile = "-"
 	}
-	title := headerStyle.Render("tpuf")
+	title := headerStyle.Render("lazypuffer")
 	meta := subtleStyle.Render(fmt.Sprintf("profile:%s  %s  ns:%s", profile, m.profile.DisplayRegion(), ns))
 	return lipgloss.JoinHorizontal(lipgloss.Top, title, "  ", meta)
 }

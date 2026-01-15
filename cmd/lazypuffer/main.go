@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	flags := flagr.New("tpuf")
-	configPath := flags.String("config", "c", "", "config file path (default: ~/.config/tpuf/config.toml)")
+	flags := flagr.New("lazypuffer")
+	configPath := flags.String("config", "c", "", "config file path (default: ~/.config/lazypuffer/config.toml)")
 	profileName := flags.String("profile", "p", "", "profile name to use")
 	namespaceOverride := flags.String("namespace", "n", "", "override default namespace")
 	help := flags.Bool("help", "h", false, "show help")

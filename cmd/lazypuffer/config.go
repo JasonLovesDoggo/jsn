@@ -34,7 +34,7 @@ func defaultConfigPath() string {
 	if err != nil {
 		return "./config.toml"
 	}
-	return filepath.Join(home, ".config", "tpuf", "config.toml")
+	return filepath.Join(home, ".config", "lazypuffer", "config.toml")
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -180,7 +180,7 @@ func ConfigTemplate(path string, profile Profile) string {
 	if namespace == "" {
 		namespace = "my_namespace"
 	}
-	return fmt.Sprintf(`# tpuf config
+	return fmt.Sprintf(`# lazypuffer config
 # path: %s
 # You can also skip this file and rely on TURBOPUFFER_API_KEY/TURBOPUFFER_REGION.
 
