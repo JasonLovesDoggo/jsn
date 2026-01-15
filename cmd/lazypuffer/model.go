@@ -12,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sahilm/fuzzy"
 	"github.com/turbopuffer/turbopuffer-go"
 )
@@ -28,7 +29,8 @@ type focusArea int
 
 const (
 	focusNamespaces focusArea = iota
-	focusDocs
+	focusDocsList
+	focusDocsDetail
 )
 
 type inputMode int
@@ -86,6 +88,7 @@ type model struct {
 	schemaRendered string
 	metaScroll     int
 	schemaScroll   int
+	detailScroll   int
 }
 
 type namespacesMsg struct {
@@ -250,6 +253,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.docs = msg.rows
 		m.docsCursor = 0
+		m.detailScroll = 0
 		if msg.warn != "" {
 			m.setStatus(msg.warn, true)
 		} else {
@@ -321,7 +325,22 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q":
 		return m, tea.Quit
 	case "tab":
-		m.toggleFocus()
+		if m.activePane == paneDocs {
+			switch m.focus {
+			case focusNamespaces:
+				m.focus = focusDocsList
+			case focusDocsList:
+				m.focus = focusDocsDetail
+			default:
+				m.focus = focusNamespaces
+			}
+			return m, nil
+		}
+		if m.focus == focusNamespaces {
+			m.focus = focusDocsList
+		} else {
+			m.focus = focusNamespaces
+		}
 		return m, nil
 	case "right":
 		m.activePane = (m.activePane + 1) % 3
@@ -331,6 +350,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "d":
 		m.activePane = paneDocs
+		if m.focus != focusNamespaces {
+			m.focus = focusDocsList
+		}
 		return m, nil
 	case "s":
 		m.activePane = paneSchema
@@ -341,18 +363,26 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.metaScroll = 0
 		return m, nil
 	case "j", "down":
-		if m.focus == focusDocs && m.activePane != paneDocs {
-			m.scrollActivePane(1)
-		} else {
-			m.moveCursor(1)
+		if m.activePane == paneDocs && m.focus == focusDocsDetail {
+			m.detailScroll = clampScroll(m.detailScroll+1, m.detailMaxOffset())
+			return m, nil
 		}
+		if m.activePane != paneDocs && m.focus != focusNamespaces {
+			m.scrollActivePane(1)
+			return m, nil
+		}
+		m.moveCursor(1)
 		return m, nil
 	case "k", "up":
-		if m.focus == focusDocs && m.activePane != paneDocs {
-			m.scrollActivePane(-1)
-		} else {
-			m.moveCursor(-1)
+		if m.activePane == paneDocs && m.focus == focusDocsDetail {
+			m.detailScroll = clampScroll(m.detailScroll-1, m.detailMaxOffset())
+			return m, nil
 		}
+		if m.activePane != paneDocs && m.focus != focusNamespaces {
+			m.scrollActivePane(-1)
+			return m, nil
+		}
+		m.moveCursor(-1)
 		return m, nil
 	case "enter":
 		if m.focus == focusNamespaces {
@@ -540,7 +570,7 @@ func (m model) handleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) toggleFocus() {
 	if m.focus == focusNamespaces {
-		m.focus = focusDocs
+		m.focus = focusDocsList
 	} else {
 		m.focus = focusNamespaces
 	}
@@ -573,6 +603,7 @@ func (m *model) moveCursor(delta int) {
 		if m.docsCursor >= len(m.docs) {
 			m.docsCursor = len(m.docs) - 1
 		}
+		m.detailScroll = 0
 	}
 }
 
@@ -596,6 +627,91 @@ func (m model) contentHeight() int {
 		return 0
 	}
 	return m.height - 2
+}
+
+func (m model) detailMaxOffset() int {
+	if len(m.docs) == 0 || m.docsCursor >= len(m.docs) {
+		return 0
+	}
+	row := m.docs[m.docsCursor]
+	content := prettyJSON(sanitizeRow(row, m.profile.VectorAttr))
+	width := m.detailViewportWidth()
+	if width > 0 {
+		content = lipgloss.NewStyle().Width(width).Render(content)
+	}
+	lines := strings.Split(content, "\n")
+	height := m.detailViewportHeight()
+	if height <= 0 || len(lines) <= height {
+		return 0
+	}
+	return len(lines) - height
+}
+
+func (m model) detailViewportWidth() int {
+	_, rightWidth := panelWidths(m.width)
+	content := rightWidth - 2
+	if content < 0 {
+		return 0
+	}
+	return content
+}
+
+func (m model) detailViewportHeight() int {
+	body := m.rightPanelHeight()
+	_, bottom := splitPaneHeights(body)
+	if bottom <= 0 {
+		return 0
+	}
+	content := bottom - 2
+	if content < 0 {
+		return 0
+	}
+	return content
+}
+
+func (m model) docsHeaderHeight() int {
+	queryLabel := "query"
+	if m.queryMode == queryVector {
+		queryLabel = "vector"
+	}
+	ns := m.namespace
+	if ns == "" {
+		ns = "-"
+	}
+	contextLine := subtleStyle.Render(fmt.Sprintf("ns: %s  mode: %s  top_k: %d  focus: %s", ns, queryLabel, m.profile.TopK, m.focusLabel()))
+	rankLine := subtleStyle.Render(m.rankSummary())
+	filterLine := subtleStyle.Render(m.filterSummary())
+	query := m.queryInput.View()
+	if m.inputMode != inputQuery {
+		if strings.TrimSpace(m.queryInput.Value()) == "" {
+			query = subtleStyle.Render(fmt.Sprintf("(/) %s search", queryLabel))
+		} else {
+			query = subtleStyle.Render(fmt.Sprintf("%s: %s", queryLabel, m.queryInput.Value()))
+		}
+	}
+	header := lipgloss.JoinVertical(lipgloss.Top, m.viewTabs(), contextLine, rankLine, filterLine, query)
+	return lipgloss.Height(header)
+}
+
+func (m model) rightPanelHeight() int {
+	header := wrapBlock(m.viewHeader(), m.width)
+	footer := wrapBlock(m.viewFooter(), m.width)
+	body := m.height - lipgloss.Height(header) - lipgloss.Height(footer)
+	if body < 0 {
+		return 0
+	}
+	return body
+}
+
+func (m model) focusLabel() string {
+	switch m.focus {
+	case focusDocsDetail:
+		return "detail"
+	case focusDocsList:
+		return "list"
+	default:
+		return "namespaces"
+	}
 }
 
 func (m model) handleRefresh() (tea.Model, tea.Cmd) {

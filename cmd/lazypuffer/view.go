@@ -27,14 +27,7 @@ func (m model) View() string {
 		return header + "\n" + footer
 	}
 
-	leftWidth := m.width / 3
-	if leftWidth < 24 {
-		leftWidth = 24
-	}
-	if leftWidth > 40 {
-		leftWidth = 40
-	}
-	rightWidth := m.width - leftWidth
+	leftWidth, rightWidth := panelWidths(m.width)
 
 	left := m.viewNamespaces(leftWidth, bodyHeight)
 	right := m.viewRightPanel(rightWidth, bodyHeight)
@@ -144,17 +137,20 @@ func (m model) viewRightPanel(width, height int) string {
 	case paneMeta:
 		panel = m.viewMeta(width, height)
 	default:
-		panel = m.viewDocs(width, height)
+		panel = m.viewDocsSplit(width, height)
 	}
 	panel = clipToHeight(panel, height)
+	if m.activePane == paneDocs {
+		return panel
+	}
 	style := blurredBorder
-	if m.focus == focusDocs {
+	if m.focus != focusNamespaces {
 		style = focusedBorder
 	}
 	return style.Width(width).Height(height).Render(panel)
 }
 
-func (m model) viewDocs(width, height int) string {
+func (m model) viewDocsSplit(width, height int) string {
 	tabs := m.viewTabs()
 	queryLabel := "query"
 	if m.queryMode == queryVector {
@@ -172,59 +168,55 @@ func (m model) viewDocs(width, height int) string {
 	if ns == "" {
 		ns = "-"
 	}
-	contextLine := subtleStyle.Render(fmt.Sprintf("ns: %s  mode: %s  top_k: %d", ns, queryLabel, m.profile.TopK))
+	contextLine := subtleStyle.Render(fmt.Sprintf("ns: %s  mode: %s  top_k: %d  focus: %s", ns, queryLabel, m.profile.TopK, m.focusLabel()))
 	rankLine := subtleStyle.Render(m.rankSummary())
 	filterLine := subtleStyle.Render(m.filterSummary())
 	header := lipgloss.JoinVertical(lipgloss.Top, tabs, contextLine, rankLine, filterLine, query)
 	header = wrapBlock(header, width)
 
 	headerHeight := lipgloss.Height(header)
-	available := height - headerHeight
-	if available < 0 {
-		available = 0
-	}
-	listHeight := 0
-	if available > 0 {
-		listHeight = available / 2
-		if listHeight < 1 {
-			listHeight = 1
-		}
-		maxListHeight := available - 1
-		if maxListHeight < 1 {
-			maxListHeight = 1
-		}
-		if listHeight > maxListHeight {
-			listHeight = maxListHeight
-		}
-	}
-	detailHeight := available - listHeight - 1
-	if detailHeight < 0 {
-		detailHeight = 0
-	}
+	topPaneHeight, bottomPaneHeight := splitPaneHeights(height)
+	contentHeight := maxInt(0, topPaneHeight-2)
+	listRows := maxInt(1, contentHeight-headerHeight-1)
 
 	listWidth := width - 2
 	rows := make([]string, 0, len(m.docs))
 	for _, row := range m.docs {
 		rows = append(rows, rowSummary(row, m.profile.TextAttr, m.profile.VectorAttr, listWidth))
 	}
-	list, start, end := renderList(rows, m.docsCursor, listHeight, listWidth, m.focus == focusDocs)
+	list, start, end := renderList(rows, m.docsCursor, listRows, listWidth, m.focus == focusDocsList)
 	listFooter := listStatus(start, end, len(rows))
 	if listWidth > 0 {
 		listFooter = truncate(listFooter, listWidth)
 	}
+	listContent := strings.Join([]string{header, strings.Join(list, "\n"), listFooter}, "\n")
+	listContent = clipToHeight(listContent, topPaneHeight)
+	listStyle := blurredBorder
+	if m.focus == focusDocsList {
+		listStyle = focusedBorder
+	}
+	listStyle = listStyle.BorderBottom(true)
+	listPane := listStyle.Width(width).Height(topPaneHeight).Render(listContent)
 
 	detail := ""
 	if m.inputMode == inputDocID {
 		detail = m.docIDInput.View()
 	} else {
-		detail = m.docDetail(width-2, detailHeight)
+		detail = m.docDetail(width-2, maxInt(0, bottomPaneHeight-2), m.detailScroll)
 	}
 
-	parts := []string{header, strings.Join(list, "\n"), listFooter, detail}
-	return strings.Join(parts, "\n")
+	detailContent := clipToHeight(detail, bottomPaneHeight)
+	detailStyle := blurredBorder
+	if m.focus == focusDocsDetail {
+		detailStyle = focusedBorder
+	}
+	detailStyle = detailStyle.BorderTop(false)
+	detailPane := detailStyle.Width(width).Height(bottomPaneHeight).Render(detailContent)
+
+	return lipgloss.JoinVertical(lipgloss.Top, listPane, detailPane)
 }
 
-func (m model) docDetail(width, height int) string {
+func (m model) docDetail(width, height int, offset int) string {
 	if len(m.docs) == 0 || m.docsCursor >= len(m.docs) {
 		return subtleStyle.Render("No document selected")
 	}
@@ -236,8 +228,7 @@ func (m model) docDetail(width, height int) string {
 	if width < 10 {
 		return content
 	}
-	style := lipgloss.NewStyle().Width(width).Height(height)
-	return style.Render(content)
+	return renderScrollable(content, width, height, offset)
 }
 
 func (m model) viewSchema(width, height int) string {
@@ -350,23 +341,7 @@ func renderScrollable(content string, width int, height int, offset int) string 
 	return style.Render(out)
 }
 
-func wrapBlock(content string, width int) string {
-	if width <= 0 {
-		return content
-	}
-	return lipgloss.NewStyle().Width(width).Render(content)
-}
-
-func clipToHeight(content string, height int) string {
-	if height <= 0 {
-		return ""
-	}
-	lines := strings.Split(content, "\n")
-	if len(lines) <= height {
-		return content
-	}
-	return strings.Join(lines[:height], "\n")
-}
+// layout helpers live in layout.go
 
 func (m model) rankSummary() string {
 	if m.queryMode == queryVector {
