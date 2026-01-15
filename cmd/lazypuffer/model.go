@@ -898,31 +898,50 @@ func prettyJSON(v any) string {
 }
 
 func parseFilters(raw string) (turbopuffer.Filter, string, error) {
-	parts := splitFilterParts(raw)
-	filters := make([]turbopuffer.Filter, 0, len(parts))
-	canon := make([]string, 0, len(parts))
-	for _, part := range parts {
-		filter, canonical, err := parseFilterPart(part)
-		if err != nil {
-			return nil, "", err
-		}
-		if filter != nil {
-			filters = append(filters, filter)
-			if canonical != "" {
-				canon = append(canon, canonical)
+	orGroups := splitTopLevel(raw, "||")
+	orFilters := make([]turbopuffer.Filter, 0, len(orGroups))
+	orCanon := make([]string, 0, len(orGroups))
+	for _, group := range orGroups {
+		parts := splitTopLevelMulti(group, []string{",", "&", "&&"})
+		filters := make([]turbopuffer.Filter, 0, len(parts))
+		canon := make([]string, 0, len(parts))
+		for _, part := range parts {
+			filter, canonical, err := parseFilterPart(part)
+			if err != nil {
+				return nil, "", err
+			}
+			if filter != nil {
+				filters = append(filters, filter)
+				if canonical != "" {
+					canon = append(canon, canonical)
+				}
 			}
 		}
+		if len(filters) == 0 {
+			continue
+		}
+		if len(filters) == 1 {
+			orFilters = append(orFilters, filters[0])
+			orCanon = append(orCanon, strings.Join(canon, " & "))
+		} else {
+			orFilters = append(orFilters, turbopuffer.NewFilterAnd(filters))
+			orCanon = append(orCanon, strings.Join(canon, " & "))
+		}
 	}
-	if len(filters) == 0 {
+	if len(orFilters) == 0 {
 		return nil, "", nil
 	}
-	if len(filters) == 1 {
-		return filters[0], strings.Join(canon, ", "), nil
+	if len(orFilters) == 1 {
+		return orFilters[0], orCanon[0], nil
 	}
-	return turbopuffer.NewFilterAnd(filters), strings.Join(canon, ", "), nil
+	return turbopuffer.NewFilterOr(orFilters), strings.Join(orCanon, " || "), nil
 }
 
-func splitFilterParts(raw string) []string {
+func splitTopLevel(raw string, sep string) []string {
+	return splitTopLevelMulti(raw, []string{sep})
+}
+
+func splitTopLevelMulti(raw string, seps []string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil
@@ -931,37 +950,55 @@ func splitFilterParts(raw string) []string {
 	var buf strings.Builder
 	inQuotes := false
 	bracketDepth := 0
-	for _, r := range raw {
-		switch r {
-		case '"':
+	i := 0
+	for i < len(raw) {
+		if raw[i] == '"' {
 			inQuotes = !inQuotes
-			buf.WriteRune(r)
-		case '[':
+			buf.WriteByte(raw[i])
+			i++
+			continue
+		}
+		if raw[i] == '[' {
 			bracketDepth++
-			buf.WriteRune(r)
-		case ']':
+			buf.WriteByte(raw[i])
+			i++
+			continue
+		}
+		if raw[i] == ']' {
 			if bracketDepth > 0 {
 				bracketDepth--
 			}
-			buf.WriteRune(r)
-		case ',':
-			if !inQuotes && bracketDepth == 0 {
+			buf.WriteByte(raw[i])
+			i++
+			continue
+		}
+		if !inQuotes && bracketDepth == 0 {
+			if sep, ok := matchSeparator(raw[i:], seps); ok {
 				part := strings.TrimSpace(buf.String())
 				if part != "" {
 					parts = append(parts, part)
 				}
 				buf.Reset()
-			} else {
-				buf.WriteRune(r)
+				i += len(sep)
+				continue
 			}
-		default:
-			buf.WriteRune(r)
 		}
+		buf.WriteByte(raw[i])
+		i++
 	}
 	if tail := strings.TrimSpace(buf.String()); tail != "" {
 		parts = append(parts, tail)
 	}
 	return parts
+}
+
+func matchSeparator(input string, seps []string) (string, bool) {
+	for _, sep := range seps {
+		if strings.HasPrefix(input, sep) {
+			return sep, true
+		}
+	}
+	return "", false
 }
 
 func parseFilterPart(part string) (turbopuffer.Filter, string, error) {

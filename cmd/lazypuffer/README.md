@@ -43,7 +43,7 @@ lazypuffer shows the exact ranking target in the Docs header:
 
 ## Filters
 
-Press `f` to edit filters. Comma-separated filters are ANDed together.
+Press `f` to edit filters. Comma or `&` separated filters are ANDed together, `||` groups are ORed.
 
 Supported operators:
 - `=` `!=` `>` `>=` `<` `<=`
@@ -51,6 +51,8 @@ Supported operators:
 
 Examples:
 - `status=published, likes>=10`
+- `status=published & likes>=10`
+- `status=published || status=draft`
 - `author_id in 1|2|3`
 - `tag in ["ai","infra"]`
 
