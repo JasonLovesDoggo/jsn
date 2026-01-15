@@ -5,7 +5,7 @@
 ## Quick start
 
 ```bash
-go run ./cmd/lazypuffer
+go install pkg.jsn.cam/jsn/cmd/lazypuffer@latest
 ```
 
 On first run, lazypuffer will prompt for:
