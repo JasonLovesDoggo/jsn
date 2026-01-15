@@ -21,6 +21,7 @@ require (
 	github.com/segmentio/encoding v0.5.3
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.18.0
+	github.com/turbopuffer/turbopuffer-go v1.9.2
 	github.com/zeebo/xxh3 v1.0.2
 	go4.org v0.0.0-20230225012048-214862532bf5
 	golang.org/x/sys v0.38.0
@@ -83,7 +84,8 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.11 // indirect
 	github.com/tailscale/win v0.0.0-20250627215312-f4da2b8ee071 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
-	github.com/tidwall/pretty v1.2.0 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/vcaesar/gops v0.41.0 // indirect
