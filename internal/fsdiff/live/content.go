@@ -68,7 +68,7 @@ func (s *Session) computeDiff(path, oldHash string) string {
 	oldContent, err := s.store.LoadContent(oldHash)
 	if err != nil {
 		if s.config.Verbose {
-			println("  computeDiff: failed to load old content for hash", oldHash[:8], ":", err.Error())
+			println("  computeDiff: failed to load old content for hash", truncHash(oldHash), ":", err.Error())
 		}
 		return ""
 	}

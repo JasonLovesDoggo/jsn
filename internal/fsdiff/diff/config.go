@@ -3,6 +3,7 @@ package diff
 import (
 	"time"
 
+	"pkg.jsn.cam/jsn/internal/fsdiff/scanner"
 	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
 )
 
@@ -17,7 +18,7 @@ type Config struct {
 // Differ handles comparing snapshots
 type Differ struct {
 	config  *Config
-	ignorer *PathIgnorer
+	ignorer *scanner.PathIgnorer
 }
 
 // Result represents the comparison between two snapshots
@@ -48,11 +49,6 @@ type Summary struct {
 	DeletedSize    int64         `json:"deleted_size"`
 	SizeDiff       int64         `json:"size_diff"`
 	ComparisonTime time.Duration `json:"comparison_time"`
-}
-
-// PathIgnorer handles ignore pattern matching for diffs
-type PathIgnorer struct {
-	patterns []string
 }
 
 // ChangeType represents the type of change

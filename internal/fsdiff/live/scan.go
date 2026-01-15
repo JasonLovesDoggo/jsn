@@ -272,7 +272,7 @@ func (s *Session) scan(ctx context.Context) error {
 		// Compute diff if in watched directory
 		if s.shouldComputeDiff(path) && detail.OldRecord != nil && detail.OldRecord.Hash != "" {
 			if s.config.Verbose {
-				fmt.Printf("  Computing diff for %s (old hash: %s)\n", path, detail.OldRecord.Hash[:8])
+				fmt.Printf("  Computing diff for %s (old hash: %s)\n", path, truncHash(detail.OldRecord.Hash))
 			}
 			change.Diff = s.computeDiff(path, detail.OldRecord.Hash)
 			if change.Diff == "" && s.config.Verbose {
@@ -340,6 +340,11 @@ func (s *Session) scan(ctx context.Context) error {
 
 		s.mu.Lock()
 		s.changes = append(s.changes, newChanges...)
+		// Cap in-memory changes to prevent unbounded growth (persisted to DB regardless)
+		const maxInMemoryChanges = 100000
+		if len(s.changes) > maxInMemoryChanges {
+			s.changes = s.changes[len(s.changes)-maxInMemoryChanges:]
+		}
 		s.current = newSnap
 		s.mu.Unlock()
 
@@ -350,6 +355,11 @@ func (s *Session) scan(ctx context.Context) error {
 	// Track scan metadata
 	s.scanMu.Lock()
 	s.scans = append(s.scans, scan)
+	// Cap in-memory scans to prevent unbounded growth
+	const maxInMemoryScans = 10000
+	if len(s.scans) > maxInMemoryScans {
+		s.scans = s.scans[len(s.scans)-maxInMemoryScans:]
+	}
 	s.scanMu.Unlock()
 
 	if err := s.store.AppendScan(scan); err != nil {

@@ -6,6 +6,14 @@ import (
 	"time"
 )
 
+// truncHash safely truncates a hash to 8 chars for display
+func truncHash(hash string) string {
+	if len(hash) <= 8 {
+		return hash
+	}
+	return hash[:8]
+}
+
 // getIcon returns a single-character icon for a change type
 func getIcon(t ChangeType) string {
 	switch t {

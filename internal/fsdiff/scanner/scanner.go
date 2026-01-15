@@ -122,7 +122,7 @@ func (s *Scanner) ScanFilesystemWithCancel(rootPath string) *ScanResult {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(sigChan)
 
-	interrupted := false
+	var interrupted atomic.Bool
 	go func() {
 		sigCount := 0
 		for {
@@ -133,7 +133,7 @@ func (s *Scanner) ScanFilesystemWithCancel(rootPath string) *ScanResult {
 					if s.config.Verbose {
 						fmt.Println("\n⚠️  Interrupted - saving partial snapshot...")
 					}
-					interrupted = true
+					interrupted.Store(true)
 					cancel()
 				} else if sigCount >= 2 {
 					fmt.Println("\n🛑 Force exit")
@@ -197,7 +197,7 @@ func (s *Scanner) ScanFilesystemWithCancel(rootPath string) *ScanResult {
 		SystemInfo: system.GetSystemInfo(rootPath),
 		Files:      files,
 		MerkleRoot: merkle.CalculateMerkleRoot(files),
-		IsPartial:  interrupted,
+		IsPartial:  interrupted.Load(),
 		Stats: snapshot.ScanStats{
 			FileCount:    int(atomic.LoadInt64(&s.stats.FilesProcessed)),
 			DirCount:     int(atomic.LoadInt64(&s.stats.DirsProcessed)),
@@ -208,7 +208,7 @@ func (s *Scanner) ScanFilesystemWithCancel(rootPath string) *ScanResult {
 	}
 
 	if s.config.Verbose {
-		if interrupted {
+		if interrupted.Load() {
 			s.printPartialSummary(snap)
 		} else {
 			s.printSummary(snap)
@@ -217,10 +217,10 @@ func (s *Scanner) ScanFilesystemWithCancel(rootPath string) *ScanResult {
 
 	// Don't return ctx.Err() as an error - it's expected on interrupt
 	if err != nil && err != context.Canceled {
-		return &ScanResult{Snapshot: snap, Interrupted: interrupted, Error: err}
+		return &ScanResult{Snapshot: snap, Interrupted: interrupted.Load(), Error: err}
 	}
 
-	return &ScanResult{Snapshot: snap, Interrupted: interrupted, Error: nil}
+	return &ScanResult{Snapshot: snap, Interrupted: interrupted.Load(), Error: nil}
 }
 
 // ScanToFile performs a streaming scan that writes directly to a snapshot file
@@ -241,7 +241,7 @@ func (s *Scanner) ScanToFileWithCancel(rootPath, outputFile string) *ScanResult 
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(sigChan)
 
-	interrupted := false
+	var interrupted atomic.Bool
 	go func() {
 		sigCount := 0
 		for {
@@ -252,7 +252,7 @@ func (s *Scanner) ScanToFileWithCancel(rootPath, outputFile string) *ScanResult 
 					if s.config.Verbose {
 						fmt.Println("\n⚠️  Interrupted - saving partial snapshot...")
 					}
-					interrupted = true
+					interrupted.Store(true)
 					cancel()
 				} else if sigCount >= 2 {
 					fmt.Println("\n🛑 Force exit")
@@ -389,21 +389,21 @@ func (s *Scanner) ScanToFileWithCancel(rootPath, outputFile string) *ScanResult 
 	}
 
 	if err := encoder.Encode(finalStats); err != nil {
-		return &ScanResult{Error: fmt.Errorf("failed to write final stats: %v", err), Interrupted: interrupted}
+		return &ScanResult{Error: fmt.Errorf("failed to write final stats: %v", err), Interrupted: interrupted.Load()}
 	}
 
 	if err := encoder.Encode(rollingMerkleRoot); err != nil {
-		return &ScanResult{Error: fmt.Errorf("failed to write merkle root: %v", err), Interrupted: interrupted}
+		return &ScanResult{Error: fmt.Errorf("failed to write merkle root: %v", err), Interrupted: interrupted.Load()}
 	}
 
 	// Write interrupted flag
-	if err := encoder.Encode(interrupted); err != nil {
-		return &ScanResult{Error: fmt.Errorf("failed to write interrupted flag: %v", err), Interrupted: interrupted}
+	if err := encoder.Encode(interrupted.Load()); err != nil {
+		return &ScanResult{Error: fmt.Errorf("failed to write interrupted flag: %v", err), Interrupted: interrupted.Load()}
 	}
 
 	// Ensure all data is written
 	if err := gzWriter.Close(); err != nil {
-		return &ScanResult{Error: fmt.Errorf("failed to close gzip writer: %v", err), Interrupted: interrupted}
+		return &ScanResult{Error: fmt.Errorf("failed to close gzip writer: %v", err), Interrupted: interrupted.Load()}
 	}
 
 	// Get final snapshot size for reporting
@@ -414,7 +414,7 @@ func (s *Scanner) ScanToFileWithCancel(rootPath, outputFile string) *ScanResult 
 	}
 
 	if s.config.Verbose {
-		if interrupted {
+		if interrupted.Load() {
 			fmt.Printf("⚠️  Partial scan saved: %d files, %d dirs, %s in %v (%.0f files/sec)\n",
 				finalStats.FileCount, finalStats.DirCount,
 				formatBytes(finalStats.TotalSize), finalStats.ScanDuration,
@@ -439,10 +439,10 @@ func (s *Scanner) ScanToFileWithCancel(rootPath, outputFile string) *ScanResult 
 
 	// Don't return ctx.Err() - it's expected on interrupt
 	if err != nil && err != context.Canceled {
-		return &ScanResult{Error: err, Interrupted: interrupted}
+		return &ScanResult{Error: err, Interrupted: interrupted.Load()}
 	}
 
-	return &ScanResult{Error: nil, Interrupted: interrupted}
+	return &ScanResult{Error: nil, Interrupted: interrupted.Load()}
 }
 
 func (s *Scanner) progressMonitor(ctx <-chan struct{}) {

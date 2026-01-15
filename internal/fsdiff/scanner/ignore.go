@@ -12,8 +12,17 @@ type PathIgnorer struct {
 	contains []string
 }
 
-func newPathIgnorer(userPatterns []string) *PathIgnorer {
+// NewPathIgnorer creates a PathIgnorer with only the provided patterns (no defaults).
+// Use this for user-controlled filtering where defaults aren't desired.
+func NewPathIgnorer(patterns []string) *PathIgnorer {
+	return newPathIgnorerInternal(patterns, false)
+}
 
+func newPathIgnorer(userPatterns []string) *PathIgnorer {
+	return newPathIgnorerInternal(userPatterns, true)
+}
+
+func newPathIgnorerInternal(userPatterns []string, includeDefaults bool) *PathIgnorer {
 	defaultPatterns := []string{
 		// Linux virtual/temp filesystems
 		"/proc", "/sys", "/dev", "/tmp", "/var/tmp", "/run", "/var/run",
@@ -64,7 +73,12 @@ func newPathIgnorer(userPatterns []string) *PathIgnorer {
 	}
 
 	// Pre-process patterns for faster matching
-	allPatterns := append(defaultPatterns, userPatterns...)
+	var allPatterns []string
+	if includeDefaults {
+		allPatterns = append(defaultPatterns, userPatterns...)
+	} else {
+		allPatterns = userPatterns
+	}
 	for _, pattern := range allPatterns {
 		if strings.HasPrefix(pattern, "*/") {
 			ignorer.suffixes = append(ignorer.suffixes, pattern[1:])

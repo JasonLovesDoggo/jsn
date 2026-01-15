@@ -2,10 +2,9 @@ package diff
 
 import (
 	"fmt"
-	"path/filepath"
-	"strings"
 	"time"
 
+	"pkg.jsn.cam/jsn/internal/fsdiff/scanner"
 	"pkg.jsn.cam/jsn/internal/fsdiff/snapshot"
 	systemv2 "pkg.jsn.cam/jsn/internal/fsdiff/system/v2"
 )
@@ -17,10 +16,8 @@ func New(config *Config) *Differ {
 	}
 
 	return &Differ{
-		config: config,
-		ignorer: &PathIgnorer{
-			patterns: config.IgnorePatterns,
-		},
+		config:  config,
+		ignorer: scanner.NewPathIgnorer(config.IgnorePatterns),
 	}
 }
 
@@ -354,62 +351,4 @@ func (d *Differ) calculateSummary(result *Result, duration time.Duration) Summar
 	summary.SizeDiff = summary.AddedSize - summary.DeletedSize
 
 	return summary
-}
-
-// ShouldIgnore checks if a path should be ignored during diff
-func (i *PathIgnorer) ShouldIgnore(path string) bool {
-	for _, pattern := range i.patterns {
-		if i.matchPattern(path, pattern) {
-			return true
-		}
-	}
-	return false
-}
-
-// matchPattern performs pattern matching for ignore rules
-func (i *PathIgnorer) matchPattern(path, pattern string) bool {
-	// Handle different pattern types
-
-	// Exact match
-	if path == pattern {
-		return true
-	}
-
-	// Directory name matching (e.g., ".cache" matches any .cache directory)
-	pathParts := strings.Split(path, string(filepath.Separator))
-	for _, part := range pathParts {
-		if part == pattern {
-			return true
-		}
-	}
-
-	// Wildcard matching
-	if strings.Contains(pattern, "*") {
-		matched, _ := filepath.Match(pattern, filepath.Base(path))
-		if matched {
-			return true
-		}
-		// Also try matching the full path
-		matched, _ = filepath.Match(pattern, path)
-		if matched {
-			return true
-		}
-	}
-
-	// Prefix matching
-	if strings.HasPrefix(path, pattern) {
-		return true
-	}
-
-	// Suffix matching
-	if strings.HasSuffix(path, pattern) {
-		return true
-	}
-
-	// Contains matching (for things like "node_modules")
-	if strings.Contains(path, pattern) {
-		return true
-	}
-
-	return false
 }
