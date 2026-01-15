@@ -74,7 +74,7 @@ func (c *Config) applyDefaults() {
 			prof.TextAttr = "text"
 		}
 		if prof.TopK == 0 {
-			prof.TopK = 20
+			prof.TopK = 50
 		}
 		c.Profiles[key] = prof
 	}
@@ -145,7 +145,7 @@ func DefaultConfigFromEnv() *Config {
 		Namespace:  strings.TrimSpace(os.Getenv("TURBOPUFFER_NAMESPACE")),
 		VectorAttr: "vector",
 		TextAttr:   "text",
-		TopK:       20,
+		TopK:       50,
 	}
 	return &Config{
 		DefaultProfile: "default",
@@ -192,7 +192,7 @@ region = "%s"
 namespace = "%s"
 vector_attr = "vector"
 text_attr = "text"
-top_k = 20
+top_k = 50
 
 #[profile.staging]
 #api_key = "tp_..."

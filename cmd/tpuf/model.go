@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -36,6 +38,8 @@ const (
 	inputNamespaceFilter
 	inputQuery
 	inputDocID
+	inputProfileName
+	inputFilter
 )
 
 type queryMode int
@@ -49,6 +53,7 @@ type model struct {
 	width          int
 	height         int
 	config         *Config
+	configPath     string
 	profileName    string
 	profile        Profile
 	profileNames   []string
@@ -68,6 +73,11 @@ type model struct {
 	queryMode      queryMode
 	queryInput     textinput.Model
 	docIDInput     textinput.Model
+	profileInput   textinput.Model
+	filterInput    textinput.Model
+	filterRaw      string
+	filter         turbopuffer.Filter
+	pendingProfile string
 	docs           []turbopuffer.Row
 	docsCursor     int
 	meta           *turbopuffer.NamespaceMetadata
@@ -96,6 +106,7 @@ type schemaMsg struct {
 type docsMsg struct {
 	rows []turbopuffer.Row
 	err  error
+	warn string
 }
 
 type switchProfileMsg struct {
@@ -109,7 +120,12 @@ type statusMsg struct {
 	err  bool
 }
 
-func NewModel(cfg *Config, profileName string, profile Profile) model {
+type configEditedMsg struct {
+	profile string
+	err     error
+}
+
+func NewModel(cfg *Config, configPath string, profileName string, profile Profile) model {
 	nsFilter := textinput.New()
 	nsFilter.Placeholder = "Filter namespaces"
 	nsFilter.CharLimit = 256
@@ -128,6 +144,18 @@ func NewModel(cfg *Config, profileName string, profile Profile) model {
 	docIDInput.Prompt = "id> "
 	docIDInput.Blur()
 
+	profileInput := textinput.New()
+	profileInput.Placeholder = "new profile name"
+	profileInput.CharLimit = 64
+	profileInput.Prompt = "profile> "
+	profileInput.Blur()
+
+	filterInput := textinput.New()
+	filterInput.Placeholder = "status=published, likes>=10"
+	filterInput.CharLimit = 512
+	filterInput.Prompt = "filter> "
+	filterInput.Blur()
+
 	names := cfg.ProfileNames()
 	index := 0
 	for i, name := range names {
@@ -139,6 +167,7 @@ func NewModel(cfg *Config, profileName string, profile Profile) model {
 
 	m := model{
 		config:       cfg,
+		configPath:   configPath,
 		profileName:  profileName,
 		profile:      profile,
 		profileNames: names,
@@ -150,6 +179,8 @@ func NewModel(cfg *Config, profileName string, profile Profile) model {
 		nsFilter:     nsFilter,
 		queryInput:   queryInput,
 		docIDInput:   docIDInput,
+		profileInput: profileInput,
+		filterInput:  filterInput,
 		queryMode:    queryText,
 		namespace:    profile.Namespace,
 	}
@@ -189,6 +220,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 	case metadataMsg:
 		m.loading = false
+		hadMeta := m.meta != nil
 		if msg.err != nil {
 			m.setStatus(fmt.Sprintf("metadata: %v", msg.err), true)
 			return m, nil
@@ -196,6 +228,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.meta = msg.meta
 		m.metaRendered = prettyJSON(msg.meta)
 		m.metaScroll = 0
+		if !hadMeta {
+			return m, m.fetchDocsCmd()
+		}
 		return m, nil
 	case schemaMsg:
 		m.loading = false
@@ -215,7 +250,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.docs = msg.rows
 		m.docsCursor = 0
-		m.setStatus(fmt.Sprintf("Docs: %d result(s)", len(m.docs)), false)
+		if msg.warn != "" {
+			m.setStatus(msg.warn, true)
+		} else {
+			m.setStatus(fmt.Sprintf("Docs: %d result(s)", len(m.docs)), false)
+		}
 		return m, nil
 	case switchProfileMsg:
 		m.profileName = msg.name
@@ -227,6 +266,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuildNamespaceMatches()
 		m.setStatus(fmt.Sprintf("Profile: %s", msg.name), false)
 		return m, m.fetchNamespacesCmd()
+	case configEditedMsg:
+		if msg.err != nil {
+			m.setStatus(fmt.Sprintf("Config edit: %v", msg.err), true)
+			return m, nil
+		}
+		cfg, err := LoadConfig(m.configPath)
+		if err != nil {
+			m.setStatus(fmt.Sprintf("Config reload: %v", err), true)
+			return m, nil
+		}
+		m.config = cfg
+		m.profileNames = cfg.ProfileNames()
+		if msg.profile != "" {
+			if prof, ok := cfg.Profiles[msg.profile]; ok {
+				if needsOnboarding(prof) {
+					m.setStatus(fmt.Sprintf("Profile %q missing API key or region", msg.profile), true)
+				} else {
+					m.profileName = msg.profile
+					m.profile = prof
+					m.client = NewClient(prof)
+					m.namespace = prof.Namespace
+					m.setStatus(fmt.Sprintf("Profile: %s", msg.profile), false)
+					return m, m.fetchNamespacesCmd()
+				}
+			} else {
+				m.setStatus(fmt.Sprintf("Profile %q not found after edit", msg.profile), true)
+			}
+		}
+		return m, nil
 	case statusMsg:
 		m.setStatus(msg.text, msg.err)
 		return m, nil
@@ -317,6 +385,14 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.docIDInput.Focus()
 			return m, nil
 		}
+	case "f":
+		if m.activePane == paneDocs {
+			m.inputMode = inputFilter
+			m.filterInput.SetValue(m.filterRaw)
+			m.filterInput.Focus()
+			m.setStatus("Edit filters", false)
+			return m, nil
+		}
 	case "r":
 		return m.handleRefresh()
 	case "t":
@@ -330,7 +406,16 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.setStatus("Query mode: vector", false)
 		return m, nil
 	case "p":
+		if len(m.profileNames) <= 1 {
+			m.inputMode = inputProfileName
+			m.profileInput.SetValue("")
+			m.profileInput.Focus()
+			m.setStatus("Create new profile (name)", false)
+			return m, nil
+		}
 		return m, m.cycleProfileCmd(1)
+	case "c":
+		return m, m.openConfigCmd("")
 	}
 	return m, nil
 }
@@ -383,6 +468,70 @@ func (m model) handleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		var cmd tea.Cmd
 		m.docIDInput, cmd = m.docIDInput.Update(msg)
+		return m, cmd
+	case inputProfileName:
+		if msg.String() == "esc" {
+			m.profileInput.Blur()
+			m.inputMode = inputNone
+			return m, nil
+		}
+		if msg.String() == "enter" {
+			name := strings.TrimSpace(m.profileInput.Value())
+			m.profileInput.Blur()
+			m.inputMode = inputNone
+			if name == "" {
+				return m, nil
+			}
+			if _, ok := m.config.Profiles[name]; ok {
+				m.setStatus(fmt.Sprintf("Profile %q already exists", name), true)
+				return m, nil
+			}
+			newProfile := Profile{
+				Namespace:  m.namespace,
+				VectorAttr: m.profile.VectorAttr,
+				TextAttr:   m.profile.TextAttr,
+				TopK:       m.profile.TopK,
+			}
+			m.config.Profiles[name] = newProfile
+			if err := WriteConfig(m.configPath, m.config); err != nil {
+				m.setStatus(fmt.Sprintf("Save profile: %v", err), true)
+				return m, nil
+			}
+			m.pendingProfile = name
+			m.setStatus(fmt.Sprintf("Profile %q created, open config to edit", name), false)
+			return m, m.openConfigCmd(name)
+		}
+		var cmd tea.Cmd
+		m.profileInput, cmd = m.profileInput.Update(msg)
+		return m, cmd
+	case inputFilter:
+		if msg.String() == "esc" {
+			m.filterInput.Blur()
+			m.inputMode = inputNone
+			return m, nil
+		}
+		if msg.String() == "enter" {
+			raw := strings.TrimSpace(m.filterInput.Value())
+			m.filterInput.Blur()
+			m.inputMode = inputNone
+			if raw == "" {
+				m.filterRaw = ""
+				m.filter = nil
+				m.setStatus("Filters cleared", false)
+				return m, m.fetchDocsCmd()
+			}
+			filter, canonical, err := parseFilters(raw)
+			if err != nil {
+				m.setStatus(fmt.Sprintf("Filter error: %v", err), true)
+				return m, nil
+			}
+			m.filterRaw = canonical
+			m.filter = filter
+			m.setStatus("Filters updated", false)
+			return m, m.fetchDocsCmd()
+		}
+		var cmd tea.Cmd
+		m.filterInput, cmd = m.filterInput.Update(msg)
 		return m, cmd
 	default:
 		return m, nil
@@ -465,6 +614,17 @@ func (m model) handleRefresh() (tea.Model, tea.Cmd) {
 	}
 }
 
+func (m *model) openConfigCmd(profile string) tea.Cmd {
+	editor := resolveEditor()
+	cmd := exec.Command(editor, m.configPath)
+	if profile != "" {
+		m.pendingProfile = profile
+	}
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return configEditedMsg{profile: m.pendingProfile, err: err}
+	})
+}
+
 func (m model) fetchNamespacesCmd() tea.Cmd {
 	client := m.client
 	return func() tea.Msg {
@@ -529,7 +689,8 @@ func (m model) fetchDocsCmd() tea.Cmd {
 		defer cancel()
 		params := turbopuffer.NamespaceQueryParams{
 			TopK:              turbopuffer.Int(int64(topK)),
-			ExcludeAttributes: buildExcludeAttributes(m.profile, m.schema),
+			IncludeAttributes: buildIncludeAttributes(m.profile, m.meta, m.schema),
+			Filters:           m.filter,
 		}
 		switch mode {
 		case queryVector:
@@ -561,23 +722,27 @@ func (m model) fetchDocByIDCmd(id string) tea.Cmd {
 	}
 	client := m.client
 	namespace := m.namespace
-	parsedID := parseID(id)
+	parsedID, fallbackID := parseIDWithSchema(id, m.meta, m.schema)
 
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		params := turbopuffer.NamespaceQueryParams{
 			TopK:              turbopuffer.Int(1),
-			ExcludeAttributes: buildExcludeAttributes(m.profile, m.schema),
-			Filters:           turbopuffer.NewFilterEq("id", parsedID),
+			IncludeAttributes: buildIncludeAttributes(m.profile, m.meta, m.schema),
 			RankBy:            turbopuffer.NewRankByAttribute("id", turbopuffer.RankByAttributeOrderAsc),
 		}
 		ns := client.Namespace(namespace)
-		resp, err := ns.Query(ctx, params)
+		filterable := idFilterable(m.meta, m.schema)
+		resp, err := queryByID(ctx, ns, parsedID, fallbackID, params, filterable)
 		if err != nil {
 			return docsMsg{err: err}
 		}
-		return docsMsg{rows: resp.Rows}
+		warn := ""
+		if !filterable {
+			warn = "id is not filterable in schema; lookup may return zero results"
+		}
+		return docsMsg{rows: resp, warn: warn}
 	}
 }
 
@@ -732,20 +897,240 @@ func prettyJSON(v any) string {
 	return string(out)
 }
 
-func buildExcludeAttributes(profile Profile, schema *turbopuffer.NamespaceSchemaResponse) []string {
+func parseFilters(raw string) (turbopuffer.Filter, string, error) {
+	parts := splitFilterParts(raw)
+	filters := make([]turbopuffer.Filter, 0, len(parts))
+	canon := make([]string, 0, len(parts))
+	for _, part := range parts {
+		filter, canonical, err := parseFilterPart(part)
+		if err != nil {
+			return nil, "", err
+		}
+		if filter != nil {
+			filters = append(filters, filter)
+			if canonical != "" {
+				canon = append(canon, canonical)
+			}
+		}
+	}
+	if len(filters) == 0 {
+		return nil, "", nil
+	}
+	if len(filters) == 1 {
+		return filters[0], strings.Join(canon, ", "), nil
+	}
+	return turbopuffer.NewFilterAnd(filters), strings.Join(canon, ", "), nil
+}
+
+func splitFilterParts(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var parts []string
+	var buf strings.Builder
+	inQuotes := false
+	bracketDepth := 0
+	for _, r := range raw {
+		switch r {
+		case '"':
+			inQuotes = !inQuotes
+			buf.WriteRune(r)
+		case '[':
+			bracketDepth++
+			buf.WriteRune(r)
+		case ']':
+			if bracketDepth > 0 {
+				bracketDepth--
+			}
+			buf.WriteRune(r)
+		case ',':
+			if !inQuotes && bracketDepth == 0 {
+				part := strings.TrimSpace(buf.String())
+				if part != "" {
+					parts = append(parts, part)
+				}
+				buf.Reset()
+			} else {
+				buf.WriteRune(r)
+			}
+		default:
+			buf.WriteRune(r)
+		}
+	}
+	if tail := strings.TrimSpace(buf.String()); tail != "" {
+		parts = append(parts, tail)
+	}
+	return parts
+}
+
+func parseFilterPart(part string) (turbopuffer.Filter, string, error) {
+	part = strings.TrimSpace(part)
+	if part == "" {
+		return nil, "", nil
+	}
+	lower := strings.ToLower(part)
+	if idx := strings.Index(lower, " not in "); idx >= 0 {
+		field := strings.TrimSpace(part[:idx])
+		value := strings.TrimSpace(part[idx+len(" not in "):])
+		list, err := parseValueList(value)
+		if err != nil {
+			return nil, "", err
+		}
+		return turbopuffer.NewFilterNotIn[any](field, list), fmt.Sprintf("%s not in %s", field, value), nil
+	}
+	if idx := strings.Index(lower, " in "); idx >= 0 {
+		field := strings.TrimSpace(part[:idx])
+		value := strings.TrimSpace(part[idx+len(" in "):])
+		list, err := parseValueList(value)
+		if err != nil {
+			return nil, "", err
+		}
+		return turbopuffer.NewFilterIn[any](field, list), fmt.Sprintf("%s in %s", field, value), nil
+	}
+	op, idx := findOperator(part)
+	if op == "" || idx < 0 {
+		return nil, "", fmt.Errorf("invalid filter: %q", part)
+	}
+	field := strings.TrimSpace(part[:idx])
+	valueRaw := strings.TrimSpace(part[idx+len(op):])
+	if field == "" || valueRaw == "" {
+		return nil, "", fmt.Errorf("invalid filter: %q", part)
+	}
+	value, err := parseScalar(valueRaw)
+	if err != nil {
+		return nil, "", err
+	}
+	switch op {
+	case "=":
+		return turbopuffer.NewFilterEq(field, value), fmt.Sprintf("%s=%s", field, valueRaw), nil
+	case "!=":
+		return turbopuffer.NewFilterNotEq(field, value), fmt.Sprintf("%s!=%s", field, valueRaw), nil
+	case ">":
+		return turbopuffer.NewFilterGt(field, value), fmt.Sprintf("%s>%s", field, valueRaw), nil
+	case ">=":
+		return turbopuffer.NewFilterGte(field, value), fmt.Sprintf("%s>=%s", field, valueRaw), nil
+	case "<":
+		return turbopuffer.NewFilterLt(field, value), fmt.Sprintf("%s<%s", field, valueRaw), nil
+	case "<=":
+		return turbopuffer.NewFilterLte(field, value), fmt.Sprintf("%s<=%s", field, valueRaw), nil
+	default:
+		return nil, "", fmt.Errorf("unsupported operator: %q", op)
+	}
+}
+
+func findOperator(part string) (string, int) {
+	ops := []string{"!=", ">=", "<=", "=", ">", "<"}
+	for _, op := range ops {
+		if idx := strings.Index(part, op); idx >= 0 {
+			return op, idx
+		}
+	}
+	return "", -1
+}
+
+func parseValueList(raw string) ([]any, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, fmt.Errorf("empty list")
+	}
+	if strings.HasPrefix(raw, "[") {
+		var out []any
+		if err := json.Unmarshal([]byte(raw), &out); err != nil {
+			return nil, fmt.Errorf("invalid list: %w", err)
+		}
+		return out, nil
+	}
+	parts := strings.Split(raw, "|")
+	out := make([]any, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		val, err := parseScalar(part)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, val)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("empty list")
+	}
+	return out, nil
+}
+
+func parseScalar(raw string) (any, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	if strings.HasPrefix(raw, "\"") {
+		var s string
+		if err := json.Unmarshal([]byte(raw), &s); err == nil {
+			return s, nil
+		}
+	}
+	lower := strings.ToLower(raw)
+	if lower == "true" {
+		return true, nil
+	}
+	if lower == "false" {
+		return false, nil
+	}
+	if i, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		return i, nil
+	}
+	if f, err := strconv.ParseFloat(raw, 64); err == nil {
+		return f, nil
+	}
+	return raw, nil
+}
+func resolveEditor() string {
+	if editor := strings.TrimSpace(os.Getenv("VISUAL")); editor != "" {
+		return editor
+	}
+	if editor := strings.TrimSpace(os.Getenv("EDITOR")); editor != "" {
+		return editor
+	}
+	return "vi"
+}
+
+func buildIncludeAttributes(profile Profile, meta *turbopuffer.NamespaceMetadata, schema *turbopuffer.NamespaceSchemaResponse) turbopuffer.IncludeAttributesParam {
+	attrs := collectNonVectorAttributes(profile, meta, schema)
+	if len(attrs) == 0 {
+		return turbopuffer.IncludeAttributesParam{}
+	}
+	return turbopuffer.IncludeAttributesParam{StringArray: attrs}
+}
+
+func collectNonVectorAttributes(profile Profile, meta *turbopuffer.NamespaceMetadata, schema *turbopuffer.NamespaceSchemaResponse) []string {
 	names := make(map[string]struct{})
 	vectorAttr := strings.TrimSpace(profile.VectorAttr)
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		if vectorAttr != "" && name == vectorAttr {
+			return
+		}
+		names[name] = struct{}{}
+	}
+	if meta != nil {
+		for name, cfg := range meta.Schema {
+			if isVectorType(cfg.Type) {
+				continue
+			}
+			add(name)
+		}
+	}
 	if schema != nil {
 		for name, cfg := range *schema {
 			if isVectorType(cfg.Type) {
-				names[name] = struct{}{}
+				continue
 			}
-			if vectorAttr != "" && name == vectorAttr {
-				names[name] = struct{}{}
-			}
+			add(name)
 		}
-	} else if vectorAttr != "" {
-		names[vectorAttr] = struct{}{}
 	}
 	out := make([]string, 0, len(names))
 	for name := range names {
@@ -766,6 +1151,88 @@ func isVectorType(attrType string) bool {
 		return true
 	}
 	return false
+}
+
+func idFilterable(meta *turbopuffer.NamespaceMetadata, schema *turbopuffer.NamespaceSchemaResponse) bool {
+	if meta != nil {
+		if cfg, ok := meta.Schema["id"]; ok {
+			return cfg.Filterable
+		}
+	}
+	if schema != nil {
+		if cfg, ok := (*schema)["id"]; ok {
+			return cfg.Filterable
+		}
+	}
+	return true
+}
+
+func idSchemaType(meta *turbopuffer.NamespaceMetadata, schema *turbopuffer.NamespaceSchemaResponse) string {
+	if meta != nil {
+		if cfg, ok := meta.Schema["id"]; ok {
+			return cfg.Type
+		}
+	}
+	if schema != nil {
+		if cfg, ok := (*schema)["id"]; ok {
+			return cfg.Type
+		}
+	}
+	return ""
+}
+
+func parseIDWithSchema(raw string, meta *turbopuffer.NamespaceMetadata, schema *turbopuffer.NamespaceSchemaResponse) (any, any) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return value, nil
+	}
+	typ := strings.ToLower(strings.TrimSpace(idSchemaType(meta, schema)))
+	switch typ {
+	case "uint", "[]uint":
+		if num, err := strconv.ParseUint(value, 10, 64); err == nil {
+			if fmt.Sprint(num) != value {
+				return num, value
+			}
+			return num, nil
+		}
+	case "int", "[]int":
+		if num, err := strconv.ParseInt(value, 10, 64); err == nil {
+			if fmt.Sprint(num) != value {
+				return num, value
+			}
+			return num, nil
+		}
+	case "float", "[]float":
+		if num, err := strconv.ParseFloat(value, 64); err == nil {
+			return num, value
+		}
+	case "uuid", "string", "[]string":
+		return value, nil
+	}
+	return parseID(value), value
+}
+
+func queryByID(ctx context.Context, ns turbopuffer.Namespace, parsedID any, fallbackID any, params turbopuffer.NamespaceQueryParams, filterable bool) ([]turbopuffer.Row, error) {
+	params.Filters = turbopuffer.NewFilterEq("id", parsedID)
+	resp, err := ns.Query(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Rows) > 0 {
+		return resp.Rows, nil
+	}
+	if !filterable {
+		return resp.Rows, nil
+	}
+	if fallbackID == nil || fmt.Sprint(fallbackID) == fmt.Sprint(parsedID) {
+		return resp.Rows, nil
+	}
+	params.Filters = turbopuffer.NewFilterEq("id", fallbackID)
+	resp, err = ns.Query(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Rows, nil
 }
 
 func maxScrollOffset(content string, height int) int {

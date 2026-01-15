@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dustin/go-humanize"
 	"github.com/turbopuffer/turbopuffer-go"
 )
 
@@ -50,6 +52,16 @@ func (m model) viewHeader() string {
 }
 
 func (m model) viewFooter() string {
+	if m.inputMode == inputProfileName {
+		prompt := m.profileInput.View()
+		help := subtleStyle.Render("enter to create, esc to cancel")
+		return lipgloss.JoinHorizontal(lipgloss.Top, prompt, "  ", help)
+	}
+	if m.inputMode == inputFilter {
+		prompt := m.filterInput.View()
+		help := subtleStyle.Render("enter to apply, esc to cancel")
+		return lipgloss.JoinHorizontal(lipgloss.Top, prompt, "  ", help)
+	}
 	status := m.status
 	if status == "" {
 		status = "Ready"
@@ -57,7 +69,7 @@ func (m model) viewFooter() string {
 	if m.statusErr {
 		status = errorStyle.Render(status)
 	}
-	help := subtleStyle.Render("q quit  tab focus  / filter/query  enter select  r refresh  t/v mode  g get id  p profile")
+	help := subtleStyle.Render("q quit  tab focus  / query  f filter  enter select  r refresh  t/v mode  g get id  p profile  c config")
 	return lipgloss.JoinHorizontal(lipgloss.Top, status, "  ", help)
 }
 
@@ -73,12 +85,25 @@ func (m model) viewNamespaces(width, height int) string {
 	}
 
 	lines := make([]string, 0, height)
-	lines = append(lines, title)
-	lines = append(lines, filter)
+	if height >= 3 {
+		lines = append(lines, title)
+		lines = append(lines, filter)
+	} else if height == 2 {
+		lines = append(lines, title)
+	} else {
+		title = ""
+		filter = ""
+	}
 
-	listHeight := height - 3
-	if listHeight < 0 {
-		listHeight = 0
+	available := height - len(lines)
+	if available < 1 {
+		available = 1
+	}
+	listHeight := available
+	showStatus := false
+	if available >= 2 {
+		showStatus = true
+		listHeight = available - 1
 	}
 
 	items := make([]string, 0, len(m.nsMatches))
@@ -88,7 +113,9 @@ func (m model) viewNamespaces(width, height int) string {
 	listWidth := width - 2
 	list, start, end := renderList(items, m.nsCursor, listHeight, listWidth, m.focus == focusNamespaces)
 	lines = append(lines, list...)
-	lines = append(lines, listStatus(start, end, len(items)))
+	if showStatus {
+		lines = append(lines, listStatus(start, end, len(items)))
+	}
 
 	panel := strings.Join(lines, "\n")
 	style := blurredBorder
@@ -134,20 +161,27 @@ func (m model) viewDocs(width, height int) string {
 		ns = "-"
 	}
 	contextLine := subtleStyle.Render(fmt.Sprintf("ns: %s  mode: %s  top_k: %d", ns, queryLabel, m.profile.TopK))
-	header := lipgloss.JoinVertical(lipgloss.Top, tabs, contextLine, query)
+	rankLine := subtleStyle.Render(m.rankSummary())
+	filterLine := subtleStyle.Render(m.filterSummary(width))
+	header := lipgloss.JoinVertical(lipgloss.Top, tabs, contextLine, rankLine, filterLine, query)
 
-	listHeight := height / 2
+	headerHeight := lipgloss.Height(header)
+	available := height - headerHeight
+	if available < 4 {
+		available = 4
+	}
+	listHeight := available / 2
 	if listHeight < 4 {
 		listHeight = 4
 	}
-	maxListHeight := height - 8
+	maxListHeight := available - 4
 	if maxListHeight < 4 {
 		maxListHeight = 4
 	}
 	if listHeight > maxListHeight {
 		listHeight = maxListHeight
 	}
-	detailHeight := height - listHeight - 3
+	detailHeight := available - listHeight - 1
 	if detailHeight < 0 {
 		detailHeight = 0
 	}
@@ -199,9 +233,9 @@ func (m model) viewSchema(width, height int) string {
 
 func (m model) viewMeta(width, height int) string {
 	tabs := m.viewTabs()
-	body := m.metaRendered
-	if body == "" {
-		body = subtleStyle.Render("No metadata loaded")
+	body := "No metadata loaded"
+	if m.meta != nil {
+		body = renderMetaSummary(m.meta)
 	}
 	content := renderScrollable(body, width, height-1, m.metaScroll)
 	return strings.Join([]string{tabs, content}, "\n")
@@ -295,6 +329,74 @@ func renderScrollable(content string, width int, height int, offset int) string 
 	out := strings.Join(lines[offset:end], "\n")
 	style := lipgloss.NewStyle().Width(width).Height(height)
 	return style.Render(out)
+}
+
+func (m model) rankSummary() string {
+	if m.queryMode == queryVector {
+		attr := m.profile.VectorAttr
+		if attr == "" {
+			attr = "vector"
+		}
+		return fmt.Sprintf("rank: vector(%s)", attr)
+	}
+	if strings.TrimSpace(m.queryInput.Value()) == "" {
+		return "rank: id asc"
+	}
+	attr := m.profile.TextAttr
+	if attr == "" {
+		attr = "text"
+	}
+	return fmt.Sprintf("rank: bm25(%s)", attr)
+}
+
+func (m model) filterSummary(width int) string {
+	raw := strings.TrimSpace(m.filterRaw)
+	if raw == "" {
+		return "filters: none"
+	}
+	line := "filters: " + raw
+	if width > 0 {
+		return truncate(line, width-2)
+	}
+	return line
+}
+
+func renderMetaSummary(meta *turbopuffer.NamespaceMetadata) string {
+	if meta == nil {
+		return ""
+	}
+	lines := []string{
+		headerStyle.Render("Namespace metadata"),
+		"",
+		fmt.Sprintf("rows: %s", humanize.Comma(meta.ApproxRowCount)),
+		fmt.Sprintf("logical bytes: %s", humanize.Bytes(uint64(meta.ApproxLogicalBytes))),
+		fmt.Sprintf("created: %s", meta.CreatedAt.Format(time.RFC3339)),
+		fmt.Sprintf("updated: %s", meta.UpdatedAt.Format(time.RFC3339)),
+	}
+	enc := "sse"
+	if meta.Encryption.Cmek.KeyName != "" {
+		enc = "cmek"
+	}
+	lines = append(lines, fmt.Sprintf("encryption: %s", enc))
+	if meta.Encryption.Cmek.KeyName != "" {
+		lines = append(lines, fmt.Sprintf("cmek key: %s", meta.Encryption.Cmek.KeyName))
+	}
+	if meta.Index.Status != "" {
+		lines = append(lines, fmt.Sprintf("index status: %s", meta.Index.Status))
+	}
+	if meta.Index.UnindexedBytes > 0 {
+		lines = append(lines, fmt.Sprintf("unindexed bytes: %s", humanize.Bytes(uint64(meta.Index.UnindexedBytes))))
+	}
+	if len(meta.Schema) > 0 {
+		vecCount := 0
+		for _, cfg := range meta.Schema {
+			if isVectorType(cfg.Type) {
+				vecCount++
+			}
+		}
+		lines = append(lines, fmt.Sprintf("attributes: %d (vector: %d)", len(meta.Schema), vecCount))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func rowSummary(row turbopuffer.Row, textAttr string, vectorAttr string, width int) string {

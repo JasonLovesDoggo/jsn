@@ -59,7 +59,7 @@ func main() {
 		}
 	}
 
-	m := NewModel(cfg, profileKey, profile)
+	m := NewModel(cfg, path, profileKey, profile)
 	if startupStatus != "" {
 		m.setStatus(startupStatus, false)
 	}
