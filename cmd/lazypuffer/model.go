@@ -722,6 +722,9 @@ func (m model) detailViewportHeight() int {
 	if content < 0 {
 		return 0
 	}
+	if content > 0 {
+		content--
+	}
 	return content
 }
 

@@ -190,7 +190,7 @@ func (m model) viewDocsSplit(width, height int) string {
 		listFooter = truncate(listFooter, listWidth)
 	}
 	listContent := strings.Join([]string{header, strings.Join(list, "\n"), listFooter}, "\n")
-	listContent = clipToHeight(listContent, topPaneHeight)
+	listContent = clipToHeight(listContent, maxInt(0, topPaneHeight-2))
 	listStyle := blurredBorder
 	if m.focus == focusDocsList {
 		listStyle = focusedBorder
@@ -198,14 +198,31 @@ func (m model) viewDocsSplit(width, height int) string {
 	listStyle = listStyle.BorderBottom(true)
 	listPane := listStyle.Width(width).Height(topPaneHeight).Render(listContent)
 
-	detail := ""
-	if m.inputMode == inputDocID {
-		detail = m.docIDInput.View()
-	} else {
-		detail = m.docDetail(width-2, maxInt(0, bottomPaneHeight-2), m.detailScroll)
+	detailContentHeight := maxInt(0, bottomPaneHeight-2)
+	detailHeader := ""
+	detailBody := ""
+	bodyHeight := detailContentHeight
+	if detailContentHeight > 0 {
+		bodyHeight = maxInt(0, detailContentHeight-1)
+		if m.inputMode == inputDocID {
+			detailHeader = m.docIDInput.View()
+		} else {
+			label := "Detail"
+			if width > 2 {
+				label = truncate(label, width-2)
+			}
+			if m.focus == focusDocsDetail {
+				detailHeader = selectedStyle.Render(label)
+			} else {
+				detailHeader = subtleStyle.Render(label)
+			}
+		}
 	}
-
-	detailContent := clipToHeight(detail, bottomPaneHeight)
+	if m.inputMode != inputDocID {
+		detailBody = m.docDetail(width-2, bodyHeight, m.detailScroll)
+	}
+	detailContent := strings.TrimRight(strings.Join([]string{detailHeader, detailBody}, "\n"), "\n")
+	detailContent = clipToHeight(detailContent, detailContentHeight)
 	detailStyle := blurredBorder
 	if m.focus == focusDocsDetail {
 		detailStyle = focusedBorder
