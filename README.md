@@ -15,6 +15,7 @@ Various experimental things. This is my experimental monorepo where programs wil
 - **typein** - Types stdin or argument text like a human (uses shared humantype lib with typer)
 - **sk** - Scriptkit: a fuzzy CLI to stash and run personal scripts under `~/.skit/scripts` (git-sync optional).
 - **jason** - (TOY) JSON lexer CLI for tokenizing JSON files
+- **lazypuffer** - Lazygit-style TUI for Turbopuffer: browse namespaces, query/filter docs, inspect schema/meta
 
 ### Assorted Tools (`cmd/assorted/`)
 
