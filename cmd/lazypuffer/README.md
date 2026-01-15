@@ -43,7 +43,7 @@ lazypuffer shows the exact ranking target in the Docs header:
 
 ## Filters
 
-Press `f` to edit filters. Comma or `&` separated filters are ANDed together, `||` groups are ORed.
+Press `f` to edit filters. Comma or `&` separated filters are ANDed together, `||` groups are ORed. AND binds tighter than OR.
 
 Supported operators:
 - `=` `!=` `>` `>=` `<` `<=`
