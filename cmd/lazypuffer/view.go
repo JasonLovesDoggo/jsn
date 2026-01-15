@@ -14,10 +14,16 @@ func (m model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return "loading..."
 	}
-	header := m.viewHeader()
-	footer := m.viewFooter()
-	bodyHeight := m.height - lipgloss.Height(header) - lipgloss.Height(footer)
-	if bodyHeight < 3 {
+	header := wrapBlock(m.viewHeader(), m.width)
+	footer := wrapBlock(m.viewFooter(), m.width)
+	headerHeight := lipgloss.Height(header)
+	if headerHeight >= m.height {
+		return clipToHeight(header, m.height)
+	}
+	footerHeight := lipgloss.Height(footer)
+	bodyHeight := m.height - headerHeight - footerHeight
+	if bodyHeight < 1 {
+		footer = clipToHeight(footer, m.height-headerHeight)
 		return header + "\n" + footer
 	}
 
@@ -96,8 +102,8 @@ func (m model) viewNamespaces(width, height int) string {
 	}
 
 	available := height - len(lines)
-	if available < 1 {
-		available = 1
+	if available < 0 {
+		available = 0
 	}
 	listHeight := available
 	showStatus := false
@@ -114,10 +120,15 @@ func (m model) viewNamespaces(width, height int) string {
 	list, start, end := renderList(items, m.nsCursor, listHeight, listWidth, m.focus == focusNamespaces)
 	lines = append(lines, list...)
 	if showStatus {
-		lines = append(lines, listStatus(start, end, len(items)))
+		status := listStatus(start, end, len(items))
+		if listWidth > 0 {
+			status = truncate(status, listWidth)
+		}
+		lines = append(lines, status)
 	}
 
 	panel := strings.Join(lines, "\n")
+	panel = clipToHeight(panel, height)
 	style := blurredBorder
 	if m.focus == focusNamespaces {
 		style = focusedBorder
@@ -135,6 +146,7 @@ func (m model) viewRightPanel(width, height int) string {
 	default:
 		panel = m.viewDocs(width, height)
 	}
+	panel = clipToHeight(panel, height)
 	style := blurredBorder
 	if m.focus == focusDocs {
 		style = focusedBorder
@@ -162,24 +174,28 @@ func (m model) viewDocs(width, height int) string {
 	}
 	contextLine := subtleStyle.Render(fmt.Sprintf("ns: %s  mode: %s  top_k: %d", ns, queryLabel, m.profile.TopK))
 	rankLine := subtleStyle.Render(m.rankSummary())
-	filterLine := subtleStyle.Render(m.filterSummary(width))
+	filterLine := subtleStyle.Render(m.filterSummary())
 	header := lipgloss.JoinVertical(lipgloss.Top, tabs, contextLine, rankLine, filterLine, query)
+	header = wrapBlock(header, width)
 
 	headerHeight := lipgloss.Height(header)
 	available := height - headerHeight
-	if available < 4 {
-		available = 4
+	if available < 0 {
+		available = 0
 	}
-	listHeight := available / 2
-	if listHeight < 4 {
-		listHeight = 4
-	}
-	maxListHeight := available - 4
-	if maxListHeight < 4 {
-		maxListHeight = 4
-	}
-	if listHeight > maxListHeight {
-		listHeight = maxListHeight
+	listHeight := 0
+	if available > 0 {
+		listHeight = available / 2
+		if listHeight < 1 {
+			listHeight = 1
+		}
+		maxListHeight := available - 1
+		if maxListHeight < 1 {
+			maxListHeight = 1
+		}
+		if listHeight > maxListHeight {
+			listHeight = maxListHeight
+		}
 	}
 	detailHeight := available - listHeight - 1
 	if detailHeight < 0 {
@@ -193,6 +209,9 @@ func (m model) viewDocs(width, height int) string {
 	}
 	list, start, end := renderList(rows, m.docsCursor, listHeight, listWidth, m.focus == focusDocs)
 	listFooter := listStatus(start, end, len(rows))
+	if listWidth > 0 {
+		listFooter = truncate(listFooter, listWidth)
+	}
 
 	detail := ""
 	if m.inputMode == inputDocID {
@@ -331,6 +350,24 @@ func renderScrollable(content string, width int, height int, offset int) string 
 	return style.Render(out)
 }
 
+func wrapBlock(content string, width int) string {
+	if width <= 0 {
+		return content
+	}
+	return lipgloss.NewStyle().Width(width).Render(content)
+}
+
+func clipToHeight(content string, height int) string {
+	if height <= 0 {
+		return ""
+	}
+	lines := strings.Split(content, "\n")
+	if len(lines) <= height {
+		return content
+	}
+	return strings.Join(lines[:height], "\n")
+}
+
 func (m model) rankSummary() string {
 	if m.queryMode == queryVector {
 		attr := m.profile.VectorAttr
@@ -349,16 +386,12 @@ func (m model) rankSummary() string {
 	return fmt.Sprintf("rank: bm25(%s)", attr)
 }
 
-func (m model) filterSummary(width int) string {
+func (m model) filterSummary() string {
 	raw := strings.TrimSpace(m.filterRaw)
 	if raw == "" {
 		return "filters: none"
 	}
-	line := "filters: " + raw
-	if width > 0 {
-		return truncate(line, width-2)
-	}
-	return line
+	return "filters: " + raw
 }
 
 func renderMetaSummary(meta *turbopuffer.NamespaceMetadata) string {

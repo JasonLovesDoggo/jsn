@@ -43,6 +43,7 @@ var (
 			MiddleBottom: "-",
 		}).
 		BorderForeground(colorBorder).
+		AlignVertical(lipgloss.Top).
 		Padding(0, 1)
 
 	blurredBorder = lipgloss.NewStyle().
@@ -61,5 +62,6 @@ var (
 			MiddleBottom: "-",
 		}).
 		BorderForeground(colorBorder).
+		AlignVertical(lipgloss.Top).
 		Padding(0, 1)
 )
