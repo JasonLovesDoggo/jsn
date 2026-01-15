@@ -127,7 +127,7 @@ func (m onboardingModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m onboardingModel) View() string {
-	title := headerStyle.Render("tpuf onboarding")
+	title := headerStyle.Render("lazypuffer onboarding")
 	subtitle := subtleStyle.Render(fmt.Sprintf("profile: %s", m.profileName))
 
 	lines := []string{title, subtitle, ""}

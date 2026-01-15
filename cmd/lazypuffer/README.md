@@ -1,19 +1,19 @@
-# tpuf
+# lazypuffer
 
-`tpuf` is a lazygit-style TUI for browsing Turbopuffer namespaces and documents.
+`lazypuffer` is a lazygit-style TUI for browsing Turbopuffer namespaces and documents.
 
 ## Quick start
 
 ```bash
-go run ./cmd/tpuf
+go run ./cmd/lazypuffer
 ```
 
-On first run, tpuf will prompt for:
+On first run, lazypuffer will prompt for:
 - API key
 - Region (or Base URL)
 - Optional default namespace
 
-Those values are saved to `~/.config/tpuf/config.toml`. You can also open the config anytime with `c`.
+Those values are saved to `~/.config/lazypuffer/config.toml`. You can also open the config anytime with `c`.
 
 ## Keybinds
 
@@ -34,7 +34,7 @@ Docs:
 
 ## What are queries running on?
 
-tpuf shows the exact ranking target in the Docs header:
+lazypuffer shows the exact ranking target in the Docs header:
 - `rank: bm25(<text_attr>)` for text mode
 - `rank: vector(<vector_attr>)` for vector mode
 - `rank: id asc` when the query input is empty
@@ -61,7 +61,7 @@ To clear filters, submit an empty value.
 Profiles let you switch orgs or environments (staging/prod).
 
 - Press `p` with a single profile to create a new profile name.
-- tpuf will open your config so you can fill in API key/region for the new profile.
+- lazypuffer will open your config so you can fill in API key/region for the new profile.
 
 Example config:
 

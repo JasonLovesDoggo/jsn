@@ -39,9 +39,9 @@ func (m setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m setupModel) View() string {
-	title := headerStyle.Render("tpuf setup")
+	title := headerStyle.Render("lazypuffer setup")
 	errLine := errorStyle.Render(fmt.Sprintf("config error: %v", m.err))
-	hint := subtleStyle.Render("Create a config file, then rerun tpuf.")
+	hint := subtleStyle.Render("Create a config file, then rerun lazypuffer.")
 	path := subtleStyle.Render(fmt.Sprintf("path: %s", m.path))
 	template := ConfigTemplate(m.path, Profile{})
 
