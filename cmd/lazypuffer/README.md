@@ -28,8 +28,9 @@ Global:
 Docs:
 - `/` edit query text
 - `t` text query mode (BM25)
-- `v` vector query mode
+- `v` vector query mode (vector literal or text to embed)
 - `g` fetch by document id
+- `y` copy selected document detail to clipboard
 - `f` edit filters
 
 ## What are queries running on?
@@ -40,6 +41,14 @@ lazypuffer shows the exact ranking target in the Docs header:
 - `rank: id asc` when the query input is empty
 
 `text_attr` and `vector_attr` come from your profile in `config.toml`.
+
+### Vector mode input
+
+When vector mode is active:
+- If the query looks like a vector literal (numbers / brackets / commas), lazypuffer uses it directly.
+- Otherwise lazypuffer treats the query as text and generates an embedding using `embedding_model`.
+- If `embedding_model` is not set, you will be prompted to set it before embedding can run.
+- OpenAI auth comes from `openai_api_key` or `OPENAI_API_KEY`.
 
 ## Filters
 
@@ -77,6 +86,8 @@ namespace = "posts"
 vector_attr = "embedding"
 text_attr = "body"
 top_k = 50
+embedding_model = "text-embedding-3-small"
+openai_api_key = "sk-..."
 
 [profile.staging]
 api_key = "tp_..."

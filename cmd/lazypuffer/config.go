@@ -20,13 +20,15 @@ type Config struct {
 }
 
 type Profile struct {
-	APIKey     string `toml:"api_key"`
-	Region     string `toml:"region"`
-	BaseURL    string `toml:"base_url"`
-	Namespace  string `toml:"namespace"`
-	VectorAttr string `toml:"vector_attr"`
-	TextAttr   string `toml:"text_attr"`
-	TopK       int    `toml:"top_k"`
+	APIKey         string `toml:"api_key"`
+	Region         string `toml:"region"`
+	BaseURL        string `toml:"base_url"`
+	Namespace      string `toml:"namespace"`
+	VectorAttr     string `toml:"vector_attr"`
+	TextAttr       string `toml:"text_attr"`
+	TopK           int    `toml:"top_k"`
+	EmbeddingModel string `toml:"embedding_model"`
+	OpenAIAPIKey   string `toml:"openai_api_key"`
 }
 
 func defaultConfigPath() string {
@@ -139,13 +141,14 @@ func needsOnboarding(profile Profile) bool {
 
 func DefaultConfigFromEnv() *Config {
 	profile := Profile{
-		APIKey:     strings.TrimSpace(os.Getenv("TURBOPUFFER_API_KEY")),
-		Region:     strings.TrimSpace(os.Getenv("TURBOPUFFER_REGION")),
-		BaseURL:    strings.TrimSpace(os.Getenv("TURBOPUFFER_BASE_URL")),
-		Namespace:  strings.TrimSpace(os.Getenv("TURBOPUFFER_NAMESPACE")),
-		VectorAttr: "vector",
-		TextAttr:   "text",
-		TopK:       50,
+		APIKey:       strings.TrimSpace(os.Getenv("TURBOPUFFER_API_KEY")),
+		Region:       strings.TrimSpace(os.Getenv("TURBOPUFFER_REGION")),
+		BaseURL:      strings.TrimSpace(os.Getenv("TURBOPUFFER_BASE_URL")),
+		Namespace:    strings.TrimSpace(os.Getenv("TURBOPUFFER_NAMESPACE")),
+		VectorAttr:   "vector",
+		TextAttr:     "text",
+		TopK:         50,
+		OpenAIAPIKey: strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
 	}
 	return &Config{
 		DefaultProfile: "default",
@@ -193,6 +196,9 @@ namespace = "%s"
 vector_attr = "vector"
 text_attr = "text"
 top_k = 50
+# optional: enable text-to-vector in vector mode
+embedding_model = ""
+openai_api_key = ""
 
 #[profile.staging]
 #api_key = "tp_..."

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -417,6 +418,15 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.docIDInput.Focus()
 			return m, nil
 		}
+	case "y":
+		if m.activePane == paneDocs {
+			if err := m.copyDetailToClipboard(); err != nil {
+				m.setStatus(fmt.Sprintf("copy: %v", err), true)
+				return m, nil
+			}
+			m.setStatus("Copied detail to clipboard", false)
+			return m, nil
+		}
 	case "f":
 		if m.activePane == paneDocs {
 			m.inputMode = inputFilter
@@ -450,6 +460,18 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.openConfigCmd("")
 	}
 	return m, nil
+}
+
+func (m model) copyDetailToClipboard() error {
+	if len(m.docs) == 0 || m.docsCursor >= len(m.docs) {
+		return fmt.Errorf("no document selected")
+	}
+	row := m.docs[m.docsCursor]
+	content := prettyJSON(sanitizeRow(row, m.profile.VectorAttr))
+	if strings.TrimSpace(content) == "" {
+		return fmt.Errorf("empty document")
+	}
+	return clipboard.WriteAll(content)
 }
 
 func (m model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
@@ -869,9 +891,18 @@ func (m model) fetchDocsCmd() tea.Cmd {
 		}
 		switch mode {
 		case queryVector:
+			if strings.TrimSpace(query) == "" {
+				return docsMsg{err: fmt.Errorf("vector query empty")}
+			}
 			vector, err := parseVector(query)
 			if err != nil {
-				return docsMsg{err: err}
+				if isLikelyVectorInput(query) {
+					return docsMsg{err: err}
+				}
+				vector, err = embedQuery(ctx, m.profile, query)
+				if err != nil {
+					return docsMsg{err: err}
+				}
 			}
 			params.RankBy = turbopuffer.NewRankByVector(vectorAttr, vector)
 		default:

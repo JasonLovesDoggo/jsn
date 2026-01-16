@@ -68,7 +68,7 @@ func (m model) viewFooter() string {
 	if m.statusErr {
 		status = errorStyle.Render(status)
 	}
-	help := subtleStyle.Render("q quit  tab focus  / query  f filter  enter select  r refresh  t/v mode  g get id  p profile  c config")
+	help := subtleStyle.Render("q quit  tab focus  / query  f filter  enter select  r refresh  t/v mode  g get id  y copy  p profile  c config")
 	return lipgloss.JoinHorizontal(lipgloss.Top, status, "  ", help)
 }
 
