@@ -12,6 +12,8 @@ import (
 	_ "github.com/go-vgo/robotgo/mouse"
 )
 
+var keyTap = robotgo.KeyTap
+
 // NearbyKeys maps characters to their neighboring keys on a QWERTY keyboard.
 var NearbyKeys = map[rune][]rune{
 	'q': {'w', 'a', 's'}, 'w': {'q', 'e', 's', 'd', 'a'}, 'e': {'w', 'r', 'd', 'f', 's'}, 'r': {'e', 't', 'f', 'g', 'd'},
@@ -71,21 +73,30 @@ func Type(text string, cfg Config) {
 		if rand.Intn(100) < cfg.TypoChance {
 			if near, ok := NearbyKeys[unicode.ToLower(char)]; ok && len(near) > 0 {
 				wrongChar := near[rand.Intn(len(near))]
-				robotgo.KeyTap(string(wrongChar))
+				keyTap(string(wrongChar))
 				time.Sleep(time.Duration(rand.Intn(40)+60) * time.Millisecond)
-				robotgo.KeyTap("backspace")
+				keyTap("backspace")
 				time.Sleep(time.Duration(rand.Intn(20)+40) * time.Millisecond)
 			}
 		}
 
-		robotgo.KeyTap(string(char))
+		key := string(char)
+		switch char {
+		case '\n':
+			key = "enter"
+		case '\t':
+			key = "tab"
+		case '\r':
+			continue
+		}
+		keyTap(key)
 
 		// Rare double-tap typo - type, delete, retype
-		if rand.Intn(200) < cfg.DoubleTypoChance && char != ' ' && char != '\n' {
+		if rand.Intn(200) < cfg.DoubleTypoChance && char != ' ' && char != '\n' && char != '\r' {
 			time.Sleep(time.Duration(rand.Intn(80)+70) * time.Millisecond)
-			robotgo.KeyTap("backspace")
+			keyTap("backspace")
 			time.Sleep(time.Duration(rand.Intn(40)+50) * time.Millisecond)
-			robotgo.KeyTap(string(char))
+			keyTap(key)
 		}
 
 		// Calculate delay
