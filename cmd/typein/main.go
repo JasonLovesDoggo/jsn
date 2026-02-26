@@ -1,22 +1,25 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"pkg.jsn.cam/jsn/internal"
 	"pkg.jsn.cam/jsn/pkg/humantype"
 )
 
 var (
-	delay     = flag.Duration("delay", 3*time.Second, "delay before starting to type")
-	typoRate  = flag.Int("typo-rate", 2, "percentage chance of typo per character (0-100)")
-	baseDelay = flag.Int("base-delay", 30, "minimum delay between keystrokes in ms")
-	variance  = flag.Int("variance", 90, "random variance added to base delay in ms")
+	delay        = flag.Duration("delay", 3*time.Second, "delay before starting to type")
+	typoRate     = flag.Int("typo-rate", 2, "percentage chance of typo per character (0-100)")
+	baseDelay    = flag.Int("base-delay", 30, "minimum delay between keystrokes in ms")
+	variance     = flag.Int("variance", 90, "random variance added to base delay in ms")
+	filePath     = flag.String("file", "", "read text from a file")
+	useClipboard = flag.Bool("clipboard", false, "read text from system clipboard")
 )
 
 func main() {
@@ -28,14 +31,28 @@ func main() {
 	cfg.DelayVariance = *variance
 
 	var input string
+	var err error
 
-	if flag.NArg() > 0 {
-		input = flag.Arg(0)
+	if *filePath != "" {
+		data, err := os.ReadFile(*filePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading file: %v\n", err)
+			os.Exit(1)
+		}
+		input = string(data)
+	} else if *useClipboard {
+		input, err = clipboard.ReadAll()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading clipboard: %v\n", err)
+			os.Exit(1)
+		}
+	} else if flag.NArg() > 0 {
+		input = strings.Join(flag.Args(), " ")
 	} else {
 		if stat, _ := os.Stdin.Stat(); (stat.Mode() & os.ModeCharDevice) != 0 {
 			fmt.Fprintln(os.Stderr, "Enter text to type, then press Cmd+D (Ctrl+D on Linux) when done:")
 		}
-		data, err := io.ReadAll(bufio.NewReader(os.Stdin))
+		data, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error reading input: %v\n", err)
 			os.Exit(1)
