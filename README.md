@@ -12,7 +12,7 @@ Various experimental things. This is my experimental monorepo where programs wil
 - **serve** - Static file server with optional verbose logging, like `python3 -m http.server` but faster and easier
 - **backoff** - Retry commands with exponential backoff, like a simple `retry` wrapper for flaky commands
 - **cidrpack** - A simple CLI to merge and minimize overlapping CIDR blocks
-- **typein** - Types stdin or argument text like a human (uses shared humantype lib with typer)
+- **typein** - Types stdin, argument, file, or clipboard text like a human (uses shared humantype lib with typer)
 - **sk** - Scriptkit: a fuzzy CLI to stash and run personal scripts under `~/.skit/scripts` (git-sync optional).
 - **jason** - (TOY) JSON lexer CLI for tokenizing JSON files
 - **lazypuffer** - Lazygit-style TUI for Turbopuffer: browse namespaces, query/filter docs, inspect schema/meta

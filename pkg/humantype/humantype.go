@@ -48,35 +48,88 @@ type Config struct {
 	PauseBase int
 	// PauseVariance is the random variance added to PauseBase in milliseconds.
 	PauseVariance int
+	// TabCompleteChance is the percentage chance (0-100) of tab-completing a word.
+	TabCompleteChance int
+	// TabCompleteMinLength is the minimum word length to consider for tab-completion.
+	TabCompleteMinLength int
 }
 
 // DefaultConfig returns a Config with sensible defaults for human-like typing.
 func DefaultConfig() Config {
 	return Config{
-		TypoChance:        2,
-		DoubleTypoChance:  1,
-		BaseDelay:         30,
-		DelayVariance:     90,
-		SpaceExtraDelay:   70,
-		NewlineExtraDelay: 130,
-		NewlineBaseDelay:  70,
-		PauseChance:       20,
-		PauseBase:         100,
-		PauseVariance:     200,
+		TypoChance:           2,
+		DoubleTypoChance:     1,
+		BaseDelay:            30,
+		DelayVariance:        90,
+		SpaceExtraDelay:      70,
+		NewlineExtraDelay:    130,
+		NewlineBaseDelay:     70,
+		PauseChance:          20,
+		PauseBase:            100,
+		PauseVariance:        200,
+		TabCompleteChance:    5,
+		TabCompleteMinLength: 8,
 	}
+}
+
+func isWordChar(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 // Type simulates human typing of the given text using the provided config.
 func Type(text string, cfg Config) {
-	for _, char := range text {
+	runes := []rune(text)
+
+	speedMultiplier := 1.0
+
+	for i := 0; i < len(runes); i++ {
+		char := runes[i]
+
+		// Slowly vary the speed multiplier
+		speedMultiplier += (rand.Float64() - 0.5) * 0.05
+		if speedMultiplier < 0.7 {
+			speedMultiplier = 0.7
+		}
+		if speedMultiplier > 1.3 {
+			speedMultiplier = 1.3
+		}
+
+		currentFactor := speedMultiplier
+
+		// Check for tab completion
+		if cfg.TabCompleteChance > 0 && isWordChar(char) {
+			// Find word boundaries
+			wordStart := i
+			for wordStart > 0 && isWordChar(runes[wordStart-1]) {
+				wordStart--
+			}
+			wordEnd := i
+			for wordEnd < len(runes) && isWordChar(runes[wordEnd]) {
+				wordEnd++
+			}
+			wordLen := wordEnd - wordStart
+			typedInWord := i - wordStart
+
+			// If we've typed some of it and it's long enough, maybe complete it
+			if wordLen >= cfg.TabCompleteMinLength && typedInWord >= 2 && rand.Intn(100) < cfg.TabCompleteChance {
+				for j := i; j < wordEnd; j++ {
+					keyTap(string(runes[j]))
+					// Almost instant typing for completion
+					time.Sleep(time.Duration(rand.Intn(10)+5) * time.Millisecond)
+				}
+				i = wordEnd - 1
+				continue
+			}
+		}
+
 		// Occasional typo - hit a nearby key then backspace
 		if rand.Intn(100) < cfg.TypoChance {
 			if near, ok := NearbyKeys[unicode.ToLower(char)]; ok && len(near) > 0 {
 				wrongChar := near[rand.Intn(len(near))]
 				keyTap(string(wrongChar))
-				time.Sleep(time.Duration(rand.Intn(40)+60) * time.Millisecond)
+				time.Sleep(time.Duration(float64(rand.Intn(40)+60) * currentFactor) * time.Millisecond)
 				keyTap("backspace")
-				time.Sleep(time.Duration(rand.Intn(20)+40) * time.Millisecond)
+				time.Sleep(time.Duration(float64(rand.Intn(20)+40) * currentFactor) * time.Millisecond)
 			}
 		}
 
@@ -93,25 +146,26 @@ func Type(text string, cfg Config) {
 
 		// Rare double-tap typo - type, delete, retype
 		if rand.Intn(200) < cfg.DoubleTypoChance && char != ' ' && char != '\n' && char != '\r' {
-			time.Sleep(time.Duration(rand.Intn(80)+70) * time.Millisecond)
+			time.Sleep(time.Duration(float64(rand.Intn(80)+70) * currentFactor) * time.Millisecond)
 			keyTap("backspace")
-			time.Sleep(time.Duration(rand.Intn(40)+50) * time.Millisecond)
+			time.Sleep(time.Duration(float64(rand.Intn(40)+50) * currentFactor) * time.Millisecond)
 			keyTap(key)
 		}
 
 		// Calculate delay
-		delay := rand.Intn(cfg.DelayVariance) + cfg.BaseDelay
+		delay := float64(rand.Intn(cfg.DelayVariance)+cfg.BaseDelay) * currentFactor
 		if char == ' ' {
-			delay += rand.Intn(cfg.SpaceExtraDelay)
+			delay += float64(rand.Intn(cfg.SpaceExtraDelay)) * currentFactor
 		} else if char == '\n' {
-			delay += rand.Intn(cfg.NewlineExtraDelay) + cfg.NewlineBaseDelay
+			delay += float64(rand.Intn(cfg.NewlineExtraDelay)+cfg.NewlineBaseDelay) * currentFactor
 		}
 		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 
 	// Occasional pause at end
 	if rand.Intn(100) < cfg.PauseChance {
-		time.Sleep(time.Duration(rand.Intn(cfg.PauseVariance)+cfg.PauseBase) * time.Millisecond)
+		delay := float64(rand.Intn(cfg.PauseVariance)+cfg.PauseBase)
+		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 }
 
