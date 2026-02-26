@@ -17,7 +17,6 @@ var (
 	typoRate  = flag.Int("typo-rate", 2, "percentage chance of typo per character (0-100)")
 	baseDelay = flag.Int("base-delay", 30, "minimum delay between keystrokes in ms")
 	variance  = flag.Int("variance", 90, "random variance added to base delay in ms")
-	wpm       = flag.Int("wpm", 0, "target words per minute (overrides base-delay and variance if > 0)")
 )
 
 func main() {
@@ -27,7 +26,6 @@ func main() {
 	cfg.TypoChance = *typoRate
 	cfg.BaseDelay = *baseDelay
 	cfg.DelayVariance = *variance
-	cfg.WPM = *wpm
 
 	var input string
 

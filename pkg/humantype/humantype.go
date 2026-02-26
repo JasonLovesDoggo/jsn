@@ -48,8 +48,6 @@ type Config struct {
 	PauseBase int
 	// PauseVariance is the random variance added to PauseBase in milliseconds.
 	PauseVariance int
-	// WPM (Words Per Minute) overrides other delay settings if set (> 0).
-	WPM int
 	// TabCompleteChance is the percentage chance (0-100) of tab-completing a word.
 	TabCompleteChance int
 	// TabCompleteMinLength is the minimum word length to consider for tab-completion.
@@ -81,12 +79,6 @@ func isWordChar(r rune) bool {
 // Type simulates human typing of the given text using the provided config.
 func Type(text string, cfg Config) {
 	runes := []rune(text)
-	baseSpeedFactor := 1.0
-	if cfg.WPM > 0 {
-		// Average delay of default config is ~75ms per char.
-		// WPM of 160 is roughly 75ms per char.
-		baseSpeedFactor = 12000.0 / float64(cfg.WPM) / 75.0
-	}
 
 	speedMultiplier := 1.0
 
@@ -102,7 +94,7 @@ func Type(text string, cfg Config) {
 			speedMultiplier = 1.3
 		}
 
-		currentFactor := baseSpeedFactor * speedMultiplier
+		currentFactor := speedMultiplier
 
 		// Check for tab completion
 		if cfg.TabCompleteChance > 0 && isWordChar(char) {
@@ -172,7 +164,7 @@ func Type(text string, cfg Config) {
 
 	// Occasional pause at end
 	if rand.Intn(100) < cfg.PauseChance {
-		delay := float64(rand.Intn(cfg.PauseVariance)+cfg.PauseBase) * baseSpeedFactor
+		delay := float64(rand.Intn(cfg.PauseVariance)+cfg.PauseBase)
 		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 }
