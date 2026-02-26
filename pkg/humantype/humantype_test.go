@@ -72,3 +72,63 @@ func TestType(t *testing.T) {
 		})
 	}
 }
+
+func TestType_TabComplete(t *testing.T) {
+	var tappedKeys []string
+
+	// Mock keyTap
+	oldKeyTap := keyTap
+	defer func() { keyTap = oldKeyTap }()
+
+	keyTap = func(key string, args ...interface{}) error {
+		tappedKeys = append(tappedKeys, key)
+		return nil
+	}
+
+	cfg := DefaultConfig()
+	cfg.TypoChance = 0
+	cfg.DoubleTypoChance = 0
+	cfg.PauseChance = 0
+	cfg.BaseDelay = 0
+	cfg.DelayVariance = 1 // minimal variance
+	cfg.TabCompleteChance = 100
+	cfg.TabCompleteMinLength = 4
+
+	input := "superlongword"
+	Type(input, cfg)
+
+	actual := ""
+	for _, k := range tappedKeys {
+		actual += k
+	}
+	if actual != input {
+		t.Errorf("expected %q, got %q", input, actual)
+	}
+}
+
+func TestType_WPM(t *testing.T) {
+	var tappedKeys []string
+
+	// Mock keyTap
+	oldKeyTap := keyTap
+	defer func() { keyTap = oldKeyTap }()
+
+	keyTap = func(key string, args ...interface{}) error {
+		tappedKeys = append(tappedKeys, key)
+		return nil
+	}
+
+	cfg := DefaultConfig()
+	cfg.TypoChance = 0
+	cfg.DoubleTypoChance = 0
+	cfg.PauseChance = 0
+	cfg.WPM = 1000 // Very fast, should not hang
+	cfg.TabCompleteChance = 0
+
+	input := "speedy"
+	Type(input, cfg)
+
+	if len(tappedKeys) != len(input) {
+		t.Errorf("expected %d keys, got %d", len(input), len(tappedKeys))
+	}
+}
