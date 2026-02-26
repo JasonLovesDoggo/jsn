@@ -92,7 +92,7 @@ func TestType_TabComplete(t *testing.T) {
 	cfg.BaseDelay = 0
 	cfg.DelayVariance = 1 // minimal variance
 	cfg.TabCompleteChance = 100
-	cfg.TabCompleteMinLength = 4
+	cfg.TabCompleteMinLength = 8
 
 	input := "superlongword"
 	Type(input, cfg)

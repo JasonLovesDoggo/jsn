@@ -67,8 +67,8 @@ func DefaultConfig() Config {
 		PauseChance:          20,
 		PauseBase:            100,
 		PauseVariance:        200,
-		TabCompleteChance:    15,
-		TabCompleteMinLength: 4,
+		TabCompleteChance:    5,
+		TabCompleteMinLength: 8,
 	}
 }
 
