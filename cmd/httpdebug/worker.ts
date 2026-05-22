@@ -6,10 +6,126 @@ interface CapturedHeader {
 	value: string;
 }
 
+interface CapturedRequestSummary {
+	url: string;
+	host: string;
+	path: string;
+	query: CapturedHeader[];
+	method: string;
+	referrer: string;
+	referrerPolicy: string;
+	cfConnectingIp: string;
+	xForwardedFor: string;
+	xRealIp: string;
+	userAgent: string;
+	accept: string;
+	acceptLanguage: string;
+	acceptEncoding: string;
+}
+
+interface CapturedCloudflare {
+	network: CapturedCloudflareNetwork;
+	geo: CapturedCloudflareGeo;
+	tls: CapturedCloudflareTls;
+	bot: CapturedCloudflareBot | null;
+	hostMetadata: unknown;
+	raw: IncomingCfProperties | null;
+}
+
+interface CapturedCloudflareNetwork {
+	colo?: string;
+	httpProtocol?: string;
+	requestPriority?: string | null;
+	clientAcceptEncoding?: string | null;
+	clientTcpRtt?: number;
+	clientQuicRtt?: number;
+	edgeDeliveryRate?: number;
+}
+
+interface CapturedCloudflareGeo {
+	asn?: number;
+	asOrganization?: string;
+	country?: string | null;
+	isEUCountry?: string | boolean | null;
+	city?: string | null;
+	continent?: string | null;
+	region?: string | null;
+	regionCode?: string | null;
+	timezone?: string;
+	latitude?: string | null;
+	longitude?: string | null;
+	postalCode?: string | null;
+	metroCode?: string | null;
+}
+
+interface CapturedCloudflareTls {
+	tlsVersion?: string;
+	tlsCipher?: string;
+	tlsClientAuth: unknown;
+	tlsClientCiphersSha1?: string;
+	tlsClientExtensionsSha1?: string;
+	tlsClientExtensionsSha1Le?: string;
+	tlsClientHelloLength?: string;
+	tlsClientRandom?: string;
+}
+
+interface CapturedCloudflareBot {
+	score?: number;
+	verifiedBot?: boolean;
+	signedAgent?: boolean;
+	staticResource?: boolean;
+	ja3Hash?: string;
+	ja4?: string;
+	detectionIds?: number[];
+	ja4Signals?: unknown;
+	jaSignalsParsed?: unknown;
+}
+
+interface IncomingCfProperties {
+	asn?: number;
+	asOrganization?: string;
+	botManagement?: CapturedCloudflareBot | null;
+	clientAcceptEncoding?: string | null;
+	clientQuicRtt?: number;
+	clientTcpRtt?: number;
+	colo?: string;
+	country?: string | null;
+	edgeL4?: {
+		deliveryRate?: number;
+	};
+	hostMetadata?: unknown;
+	httpProtocol?: string;
+	isEUCountry?: string | boolean | null;
+	requestPriority?: string | null;
+	tlsCipher?: string;
+	tlsClientAuth?: unknown;
+	tlsClientCiphersSha1?: string;
+	tlsClientExtensionsSha1?: string;
+	tlsClientExtensionsSha1Le?: string;
+	tlsClientHelloLength?: string;
+	tlsClientRandom?: string;
+	tlsVersion?: string;
+	city?: string | null;
+	continent?: string | null;
+	latitude?: string | null;
+	longitude?: string | null;
+	postalCode?: string | null;
+	metroCode?: string | null;
+	region?: string | null;
+	regionCode?: string | null;
+	timezone?: string;
+}
+
+interface CapturableRequest extends Request {
+	cf?: IncomingCfProperties;
+}
+
 interface CapturedRequest {
 	at: string;
 	method: string;
 	path: string;
+	request?: CapturedRequestSummary;
+	cloudflare?: CapturedCloudflare;
 	headers: CapturedHeader[];
 	body: string;
 	bodyTruncated: boolean;
@@ -30,7 +146,7 @@ interface Env {
 	REQUESTS: RequestStore;
 }
 
-function wantsHTML(request: Request): boolean {
+function wantsHTML(request: CapturableRequest): boolean {
 	return request.headers.get("accept")?.includes("text/html") ?? false;
 }
 
@@ -53,7 +169,7 @@ function escapeHTML(value: string): string {
 	});
 }
 
-function formatRequest(request: Request): string {
+function formatRequest(request: CapturableRequest): string {
 	const url = new URL(request.url);
 	const lines = [`${request.method} ${url.pathname}${url.search}`];
 
@@ -90,7 +206,7 @@ function storageKey(key: string): string {
 	return `capture:${key}`;
 }
 
-async function readBody(request: Request): Promise<{ body: string; bodyTruncated: boolean }> {
+async function readBody(request: CapturableRequest): Promise<{ body: string; bodyTruncated: boolean }> {
 	if (request.method === "GET" || request.method === "HEAD" || request.body === null) {
 		return {
 			body: "",
@@ -141,7 +257,125 @@ async function readBody(request: Request): Promise<{ body: string; bodyTruncated
 	};
 }
 
-async function captureRequest(request: Request, key: string): Promise<CapturedRequest> {
+function headerValue(request: CapturableRequest, name: string): string {
+	return request.headers.get(name) ?? "";
+}
+
+function capturedHeaderValue(headers: CapturedHeader[], name: string): string {
+	const found = headers.find((header) => header.name.toLowerCase() === name.toLowerCase());
+
+	return found?.value ?? "";
+}
+
+function captureRequestSummary(request: CapturableRequest): CapturedRequestSummary {
+	const url = new URL(request.url);
+	const query = [...url.searchParams].map(([name, value]) => ({ name, value }));
+
+	return {
+		url: request.url,
+		host: url.host,
+		path: `${url.pathname}${url.search}`,
+		query,
+		method: request.method,
+		referrer: request.referrer,
+		referrerPolicy: request.referrerPolicy,
+		cfConnectingIp: headerValue(request, "cf-connecting-ip"),
+		xForwardedFor: headerValue(request, "x-forwarded-for"),
+		xRealIp: headerValue(request, "x-real-ip"),
+		userAgent: headerValue(request, "user-agent"),
+		accept: headerValue(request, "accept"),
+		acceptLanguage: headerValue(request, "accept-language"),
+		acceptEncoding: headerValue(request, "accept-encoding"),
+	};
+}
+
+function emptyCloudflare(): CapturedCloudflare {
+	return {
+		network: {},
+		geo: {},
+		tls: {
+			tlsClientAuth: null,
+		},
+		bot: null,
+		hostMetadata: null,
+		raw: null,
+	};
+}
+
+function captureCloudflare(cf: IncomingCfProperties | undefined): CapturedCloudflare {
+	if (cf === undefined) {
+		return emptyCloudflare();
+	}
+
+	return {
+		network: {
+			colo: cf.colo,
+			httpProtocol: cf.httpProtocol,
+			requestPriority: cf.requestPriority,
+			clientAcceptEncoding: cf.clientAcceptEncoding,
+			clientTcpRtt: cf.clientTcpRtt,
+			clientQuicRtt: cf.clientQuicRtt,
+			edgeDeliveryRate: cf.edgeL4?.deliveryRate,
+		},
+		geo: {
+			asn: cf.asn,
+			asOrganization: cf.asOrganization,
+			country: cf.country,
+			isEUCountry: cf.isEUCountry,
+			city: cf.city,
+			continent: cf.continent,
+			region: cf.region,
+			regionCode: cf.regionCode,
+			timezone: cf.timezone,
+			latitude: cf.latitude,
+			longitude: cf.longitude,
+			postalCode: cf.postalCode,
+			metroCode: cf.metroCode,
+		},
+		tls: {
+			tlsVersion: cf.tlsVersion,
+			tlsCipher: cf.tlsCipher,
+			tlsClientAuth: cf.tlsClientAuth ?? null,
+			tlsClientCiphersSha1: cf.tlsClientCiphersSha1,
+			tlsClientExtensionsSha1: cf.tlsClientExtensionsSha1,
+			tlsClientExtensionsSha1Le: cf.tlsClientExtensionsSha1Le,
+			tlsClientHelloLength: cf.tlsClientHelloLength,
+			tlsClientRandom: cf.tlsClientRandom,
+		},
+		bot: cf.botManagement ?? null,
+		hostMetadata: cf.hostMetadata ?? null,
+		raw: cf,
+	};
+}
+
+function requestSummary(record: CapturedRequest): CapturedRequestSummary {
+	if (record.request !== undefined) {
+		return record.request;
+	}
+
+	return {
+		url: "",
+		host: capturedHeaderValue(record.headers, "host"),
+		path: record.path,
+		query: [],
+		method: record.method,
+		referrer: capturedHeaderValue(record.headers, "referer"),
+		referrerPolicy: "",
+		cfConnectingIp: capturedHeaderValue(record.headers, "cf-connecting-ip"),
+		xForwardedFor: capturedHeaderValue(record.headers, "x-forwarded-for"),
+		xRealIp: capturedHeaderValue(record.headers, "x-real-ip"),
+		userAgent: capturedHeaderValue(record.headers, "user-agent"),
+		accept: capturedHeaderValue(record.headers, "accept"),
+		acceptLanguage: capturedHeaderValue(record.headers, "accept-language"),
+		acceptEncoding: capturedHeaderValue(record.headers, "accept-encoding"),
+	};
+}
+
+function cloudflareSummary(record: CapturedRequest): CapturedCloudflare {
+	return record.cloudflare ?? emptyCloudflare();
+}
+
+async function captureRequest(request: CapturableRequest, key: string): Promise<CapturedRequest> {
 	const url = new URL(request.url);
 	const headers = [...request.headers].map(([name, value]) => ({ name, value }));
 	const { body, bodyTruncated } = await readBody(request);
@@ -150,6 +384,8 @@ async function captureRequest(request: Request, key: string): Promise<CapturedRe
 		at: new Date().toISOString(),
 		method: request.method,
 		path: `${url.pathname}${url.search}`,
+		request: captureRequestSummary(request),
+		cloudflare: captureCloudflare(request.cf),
 		headers,
 		body,
 		bodyTruncated,
@@ -157,14 +393,113 @@ async function captureRequest(request: Request, key: string): Promise<CapturedRe
 	};
 }
 
+function formatPair(label: string, value: unknown): string | null {
+	if (value === undefined || value === null || value === "") {
+		return null;
+	}
+
+	if (typeof value === "object") {
+		return `${label}: ${JSON.stringify(value)}`;
+	}
+
+	return `${label}: ${String(value)}`;
+}
+
+function pushSection(lines: string[], title: string, pairs: Array<[string, unknown]>): void {
+	const section = pairs
+		.map(([label, value]) => formatPair(label, value))
+		.filter((line): line is string => line !== null);
+
+	if (section.length === 0) {
+		return;
+	}
+
+	lines.push("", `${title}:`, ...section.map((line) => `  ${line}`));
+}
+
 function formatCapture(record: CapturedRequest): string {
+	const client = requestSummary(record);
+	const cloudflare = cloudflareSummary(record);
 	const lines = [
 		`at: ${record.at}`,
 		`${record.method} ${record.path}`,
 	];
 
+	pushSection(lines, "client", [
+		["url", client.url],
+		["host", client.host],
+		["query", client.query],
+		["ip", client.cfConnectingIp],
+		["x-forwarded-for", client.xForwardedFor],
+		["x-real-ip", client.xRealIp],
+		["user-agent", client.userAgent],
+		["accept", client.accept],
+		["accept-language", client.acceptLanguage],
+		["accept-encoding", client.acceptEncoding],
+		["referrer", client.referrer],
+		["referrer-policy", client.referrerPolicy],
+	]);
+
+	pushSection(lines, "cloudflare network", [
+		["colo", cloudflare.network.colo],
+		["httpProtocol", cloudflare.network.httpProtocol],
+		["requestPriority", cloudflare.network.requestPriority],
+		["clientAcceptEncoding", cloudflare.network.clientAcceptEncoding],
+		["clientTcpRtt", cloudflare.network.clientTcpRtt],
+		["clientQuicRtt", cloudflare.network.clientQuicRtt],
+		["edgeDeliveryRate", cloudflare.network.edgeDeliveryRate],
+	]);
+
+	pushSection(lines, "cloudflare geo", [
+		["asn", cloudflare.geo.asn],
+		["asOrganization", cloudflare.geo.asOrganization],
+		["country", cloudflare.geo.country],
+		["isEUCountry", cloudflare.geo.isEUCountry],
+		["city", cloudflare.geo.city],
+		["continent", cloudflare.geo.continent],
+		["region", cloudflare.geo.region],
+		["regionCode", cloudflare.geo.regionCode],
+		["timezone", cloudflare.geo.timezone],
+		["latitude", cloudflare.geo.latitude],
+		["longitude", cloudflare.geo.longitude],
+		["postalCode", cloudflare.geo.postalCode],
+		["metroCode", cloudflare.geo.metroCode],
+	]);
+
+	pushSection(lines, "cloudflare tls", [
+		["tlsVersion", cloudflare.tls.tlsVersion],
+		["tlsCipher", cloudflare.tls.tlsCipher],
+		["tlsClientCiphersSha1", cloudflare.tls.tlsClientCiphersSha1],
+		["tlsClientExtensionsSha1", cloudflare.tls.tlsClientExtensionsSha1],
+		["tlsClientExtensionsSha1Le", cloudflare.tls.tlsClientExtensionsSha1Le],
+		["tlsClientHelloLength", cloudflare.tls.tlsClientHelloLength],
+		["tlsClientRandom", cloudflare.tls.tlsClientRandom],
+		["tlsClientAuth", cloudflare.tls.tlsClientAuth],
+	]);
+
+	if (cloudflare.bot !== null) {
+		pushSection(lines, "cloudflare bot", [
+			["score", cloudflare.bot.score],
+			["verifiedBot", cloudflare.bot.verifiedBot],
+			["signedAgent", cloudflare.bot.signedAgent],
+			["staticResource", cloudflare.bot.staticResource],
+			["ja3Hash", cloudflare.bot.ja3Hash],
+			["ja4", cloudflare.bot.ja4],
+			["detectionIds", cloudflare.bot.detectionIds],
+			["ja4Signals", cloudflare.bot.ja4Signals],
+			["jaSignalsParsed", cloudflare.bot.jaSignalsParsed],
+		]);
+	}
+
+	pushSection(lines, "cloudflare misc", [
+		["hostMetadata", cloudflare.hostMetadata],
+		["raw", cloudflare.raw],
+	]);
+
+	lines.push("", "headers:");
+
 	for (const header of record.headers) {
-		lines.push(`${header.name}: ${header.value}`);
+		lines.push(`  ${header.name}: ${header.value}`);
 	}
 
 	if (record.body !== "") {
@@ -220,7 +555,7 @@ async function saveCapture(env: Env, record: CapturedRequest): Promise<StoredBuc
 	return bucket;
 }
 
-function textResponse(request: Request, text: string, init: ResponseInit = {}): Response {
+function textResponse(request: CapturableRequest, text: string, init: ResponseInit = {}): Response {
 	const headers = new Headers(init.headers);
 
 	if (wantsHTML(request)) {
@@ -241,7 +576,7 @@ function textResponse(request: Request, text: string, init: ResponseInit = {}): 
 }
 
 export default {
-	async fetch(request: Request, env: Env): Promise<Response> {
+	async fetch(request: CapturableRequest, env: Env): Promise<Response> {
 		const url = new URL(request.url);
 
 		if (url.pathname === "/.jsn/health") {
