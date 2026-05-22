@@ -1,0 +1,19 @@
+{
+	"name": "httpdebug",
+	"account_id": "ceab07ef6fbd08f8776ab362573c76d6",
+	"main": "worker.ts",
+	"compatibility_date": "2026-05-22",
+	"kv_namespaces": [
+		{
+			"binding": "REQUESTS",
+			"id": "b94d19725f724b4a892157870d50d998"
+		}
+	],
+	"workers_dev": false,
+	"routes": [
+		{
+			"pattern": "dbg.jsn.cam",
+			"custom_domain": true
+		}
+	]
+}
