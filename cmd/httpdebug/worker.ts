@@ -254,7 +254,11 @@ function formatRequest(request: CapturableRequest): string {
 function captureKey(pathname: string): string {
 	const key = pathname.replace(/^\/+/, "");
 
-	if (key === "" || key.startsWith(".jsn/") || key === "value" || key.startsWith("value/")) {
+	if (key === "") {
+		return "root";
+	}
+
+	if (key.startsWith(".jsn/") || key === "value" || key.startsWith("value/")) {
 		return "";
 	}
 
