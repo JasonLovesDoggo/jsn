@@ -23,6 +23,72 @@ interface CapturedRequestSummary {
 	acceptEncoding: string;
 }
 
+interface CapturedBrowserHints {
+	secChUa: string;
+	secChUaArch: string;
+	secChUaBitness: string;
+	secChUaFullVersion: string;
+	secChUaFullVersionList: string;
+	secChUaMobile: string;
+	secChUaModel: string;
+	secChUaPlatform: string;
+	secChUaPlatformVersion: string;
+	dnt: string;
+	secGpc: string;
+}
+
+interface CapturedFetchMetadata {
+	secFetchDest: string;
+	secFetchMode: string;
+	secFetchSite: string;
+	secFetchUser: string;
+	origin: string;
+	purpose: string;
+	priority: string;
+	upgradeInsecureRequests: string;
+}
+
+interface CapturedProxySignals {
+	cfRay: string;
+	cfVisitor: string;
+	cfIpcountry: string;
+	cdnLoop: string;
+	forwarded: string;
+	via: string;
+	xForwardedHost: string;
+	xForwardedPort: string;
+	xForwardedProto: string;
+	trueClientIp: string;
+}
+
+interface CapturedContentSummary {
+	contentType: string;
+	contentLength: string;
+	contentEncoding: string;
+	contentLanguage: string;
+	authorizationPresent: boolean;
+	cookiePresent: boolean;
+	cookieCount: number;
+	cookieNames: string[];
+	bodyBytes: number;
+	bodySha256: string;
+}
+
+interface CapturedDerived {
+	requestLine: string;
+	headerOrder: string[];
+	headerNames: string[];
+	headerCount: number;
+	requestLineSha256: string;
+	headerOrderSha256: string;
+	headerNamesSha256: string;
+	headersSha256: string;
+	userAgentSha256: string;
+	clientHintsSha256: string;
+	fetchMetadataSha256: string;
+	proxySignalsSha256: string;
+}
+
 interface CapturedCloudflare {
 	network: CapturedCloudflareNetwork;
 	geo: CapturedCloudflareGeo;
@@ -125,6 +191,11 @@ interface CapturedRequest {
 	method: string;
 	path: string;
 	request?: CapturedRequestSummary;
+	browserHints?: CapturedBrowserHints;
+	fetchMetadata?: CapturedFetchMetadata;
+	proxySignals?: CapturedProxySignals;
+	content?: CapturedContentSummary;
+	derived?: CapturedDerived;
 	cloudflare?: CapturedCloudflare;
 	headers: CapturedHeader[];
 	body: string;
@@ -257,6 +328,16 @@ async function readBody(request: CapturableRequest): Promise<{ body: string; bod
 	};
 }
 
+async function sha256Hex(value: string): Promise<string> {
+	const bytes = new TextEncoder().encode(value);
+	const hash = await crypto.subtle.digest("SHA-256", bytes);
+	const hashBytes = new Uint8Array(hash);
+
+	return [...hashBytes]
+		.map((byte) => byte.toString(16).padStart(2, "0"))
+		.join("");
+}
+
 function headerValue(request: CapturableRequest, name: string): string {
 	return request.headers.get(name) ?? "";
 }
@@ -286,6 +367,115 @@ function captureRequestSummary(request: CapturableRequest): CapturedRequestSumma
 		accept: headerValue(request, "accept"),
 		acceptLanguage: headerValue(request, "accept-language"),
 		acceptEncoding: headerValue(request, "accept-encoding"),
+	};
+}
+
+function captureBrowserHints(request: CapturableRequest): CapturedBrowserHints {
+	return {
+		secChUa: headerValue(request, "sec-ch-ua"),
+		secChUaArch: headerValue(request, "sec-ch-ua-arch"),
+		secChUaBitness: headerValue(request, "sec-ch-ua-bitness"),
+		secChUaFullVersion: headerValue(request, "sec-ch-ua-full-version"),
+		secChUaFullVersionList: headerValue(request, "sec-ch-ua-full-version-list"),
+		secChUaMobile: headerValue(request, "sec-ch-ua-mobile"),
+		secChUaModel: headerValue(request, "sec-ch-ua-model"),
+		secChUaPlatform: headerValue(request, "sec-ch-ua-platform"),
+		secChUaPlatformVersion: headerValue(request, "sec-ch-ua-platform-version"),
+		dnt: headerValue(request, "dnt"),
+		secGpc: headerValue(request, "sec-gpc"),
+	};
+}
+
+function captureFetchMetadata(request: CapturableRequest): CapturedFetchMetadata {
+	return {
+		secFetchDest: headerValue(request, "sec-fetch-dest"),
+		secFetchMode: headerValue(request, "sec-fetch-mode"),
+		secFetchSite: headerValue(request, "sec-fetch-site"),
+		secFetchUser: headerValue(request, "sec-fetch-user"),
+		origin: headerValue(request, "origin"),
+		purpose: headerValue(request, "purpose"),
+		priority: headerValue(request, "priority"),
+		upgradeInsecureRequests: headerValue(request, "upgrade-insecure-requests"),
+	};
+}
+
+function captureProxySignals(request: CapturableRequest): CapturedProxySignals {
+	return {
+		cfRay: headerValue(request, "cf-ray"),
+		cfVisitor: headerValue(request, "cf-visitor"),
+		cfIpcountry: headerValue(request, "cf-ipcountry"),
+		cdnLoop: headerValue(request, "cdn-loop"),
+		forwarded: headerValue(request, "forwarded"),
+		via: headerValue(request, "via"),
+		xForwardedHost: headerValue(request, "x-forwarded-host"),
+		xForwardedPort: headerValue(request, "x-forwarded-port"),
+		xForwardedProto: headerValue(request, "x-forwarded-proto"),
+		trueClientIp: headerValue(request, "true-client-ip"),
+	};
+}
+
+function cookieNames(request: CapturableRequest): string[] {
+	const cookieHeader = headerValue(request, "cookie");
+
+	if (cookieHeader === "") {
+		return [];
+	}
+
+	return cookieHeader
+		.split(";")
+		.map((cookie) => cookie.trim().split("=")[0]?.trim() ?? "")
+		.filter((name) => name !== "");
+}
+
+async function captureContentSummary(
+	request: CapturableRequest,
+	body: string,
+): Promise<CapturedContentSummary> {
+	const cookies = cookieNames(request);
+
+	return {
+		contentType: headerValue(request, "content-type"),
+		contentLength: headerValue(request, "content-length"),
+		contentEncoding: headerValue(request, "content-encoding"),
+		contentLanguage: headerValue(request, "content-language"),
+		authorizationPresent: headerValue(request, "authorization") !== "",
+		cookiePresent: cookies.length > 0,
+		cookieCount: cookies.length,
+		cookieNames: cookies,
+		bodyBytes: new TextEncoder().encode(body).byteLength,
+		bodySha256: await sha256Hex(body),
+	};
+}
+
+async function captureDerived(
+	request: CapturableRequest,
+	headers: CapturedHeader[],
+	browserHints: CapturedBrowserHints,
+	fetchMetadata: CapturedFetchMetadata,
+	proxySignals: CapturedProxySignals,
+): Promise<CapturedDerived> {
+	const url = new URL(request.url);
+	const requestLine = `${request.method} ${url.pathname}${url.search}`;
+	const headerOrder = headers.map((header) => header.name);
+	const headerNames = [...new Set(headerOrder.map((name) => name.toLowerCase()))].sort();
+	const renderedHeaders = headers.map((header) => `${header.name}: ${header.value}`).join("\n");
+	const renderedClientHints = JSON.stringify(browserHints);
+	const renderedFetchMetadata = JSON.stringify(fetchMetadata);
+	const renderedProxySignals = JSON.stringify(proxySignals);
+
+	return {
+		requestLine,
+		headerOrder,
+		headerNames,
+		headerCount: headers.length,
+		requestLineSha256: await sha256Hex(requestLine),
+		headerOrderSha256: await sha256Hex(headerOrder.join("\n")),
+		headerNamesSha256: await sha256Hex(headerNames.join("\n")),
+		headersSha256: await sha256Hex(renderedHeaders),
+		userAgentSha256: await sha256Hex(headerValue(request, "user-agent")),
+		clientHintsSha256: await sha256Hex(renderedClientHints),
+		fetchMetadataSha256: await sha256Hex(renderedFetchMetadata),
+		proxySignalsSha256: await sha256Hex(renderedProxySignals),
 	};
 }
 
@@ -379,12 +569,22 @@ async function captureRequest(request: CapturableRequest, key: string): Promise<
 	const url = new URL(request.url);
 	const headers = [...request.headers].map(([name, value]) => ({ name, value }));
 	const { body, bodyTruncated } = await readBody(request);
+	const browserHints = captureBrowserHints(request);
+	const fetchMetadata = captureFetchMetadata(request);
+	const proxySignals = captureProxySignals(request);
+	const content = await captureContentSummary(request, body);
+	const derived = await captureDerived(request, headers, browserHints, fetchMetadata, proxySignals);
 
 	return {
 		at: new Date().toISOString(),
 		method: request.method,
 		path: `${url.pathname}${url.search}`,
 		request: captureRequestSummary(request),
+		browserHints,
+		fetchMetadata,
+		proxySignals,
+		content,
+		derived,
 		cloudflare: captureCloudflare(request.cf),
 		headers,
 		body,
@@ -439,6 +639,82 @@ function formatCapture(record: CapturedRequest): string {
 		["referrer", client.referrer],
 		["referrer-policy", client.referrerPolicy],
 	]);
+
+	if (record.browserHints !== undefined) {
+		pushSection(lines, "browser hints", [
+			["secChUa", record.browserHints.secChUa],
+			["secChUaArch", record.browserHints.secChUaArch],
+			["secChUaBitness", record.browserHints.secChUaBitness],
+			["secChUaFullVersion", record.browserHints.secChUaFullVersion],
+			["secChUaFullVersionList", record.browserHints.secChUaFullVersionList],
+			["secChUaMobile", record.browserHints.secChUaMobile],
+			["secChUaModel", record.browserHints.secChUaModel],
+			["secChUaPlatform", record.browserHints.secChUaPlatform],
+			["secChUaPlatformVersion", record.browserHints.secChUaPlatformVersion],
+			["dnt", record.browserHints.dnt],
+			["secGpc", record.browserHints.secGpc],
+		]);
+	}
+
+	if (record.fetchMetadata !== undefined) {
+		pushSection(lines, "fetch metadata", [
+			["secFetchDest", record.fetchMetadata.secFetchDest],
+			["secFetchMode", record.fetchMetadata.secFetchMode],
+			["secFetchSite", record.fetchMetadata.secFetchSite],
+			["secFetchUser", record.fetchMetadata.secFetchUser],
+			["origin", record.fetchMetadata.origin],
+			["purpose", record.fetchMetadata.purpose],
+			["priority", record.fetchMetadata.priority],
+			["upgradeInsecureRequests", record.fetchMetadata.upgradeInsecureRequests],
+		]);
+	}
+
+	if (record.proxySignals !== undefined) {
+		pushSection(lines, "proxy signals", [
+			["cfRay", record.proxySignals.cfRay],
+			["cfVisitor", record.proxySignals.cfVisitor],
+			["cfIpcountry", record.proxySignals.cfIpcountry],
+			["cdnLoop", record.proxySignals.cdnLoop],
+			["forwarded", record.proxySignals.forwarded],
+			["via", record.proxySignals.via],
+			["xForwardedHost", record.proxySignals.xForwardedHost],
+			["xForwardedPort", record.proxySignals.xForwardedPort],
+			["xForwardedProto", record.proxySignals.xForwardedProto],
+			["trueClientIp", record.proxySignals.trueClientIp],
+		]);
+	}
+
+	if (record.content !== undefined) {
+		pushSection(lines, "content", [
+			["contentType", record.content.contentType],
+			["contentLength", record.content.contentLength],
+			["contentEncoding", record.content.contentEncoding],
+			["contentLanguage", record.content.contentLanguage],
+			["authorizationPresent", record.content.authorizationPresent],
+			["cookiePresent", record.content.cookiePresent],
+			["cookieCount", record.content.cookieCount],
+			["cookieNames", record.content.cookieNames],
+			["bodyBytes", record.content.bodyBytes],
+			["bodySha256", record.content.bodySha256],
+		]);
+	}
+
+	if (record.derived !== undefined) {
+		pushSection(lines, "derived fingerprints", [
+			["requestLine", record.derived.requestLine],
+			["headerOrder", record.derived.headerOrder],
+			["headerNames", record.derived.headerNames],
+			["headerCount", record.derived.headerCount],
+			["requestLineSha256", record.derived.requestLineSha256],
+			["headerOrderSha256", record.derived.headerOrderSha256],
+			["headerNamesSha256", record.derived.headerNamesSha256],
+			["headersSha256", record.derived.headersSha256],
+			["userAgentSha256", record.derived.userAgentSha256],
+			["clientHintsSha256", record.derived.clientHintsSha256],
+			["fetchMetadataSha256", record.derived.fetchMetadataSha256],
+			["proxySignalsSha256", record.derived.proxySignalsSha256],
+		]);
+	}
 
 	pushSection(lines, "cloudflare network", [
 		["colo", cloudflare.network.colo],
