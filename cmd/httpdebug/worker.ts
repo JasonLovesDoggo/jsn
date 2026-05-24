@@ -1,6 +1,34 @@
 const maxBodyBytes = 64 * 1024;
 const maxEntries = 20;
 const captureTtlSeconds = 60 * 60 * 24 * 30;
+const captureBlacklistExact = new Set([
+	"apple-touch-icon.png",
+	"apple-touch-icon-precomposed.png",
+	"browserconfig.xml",
+	"favicon.ico",
+	"favicon.png",
+	"robots.txt",
+	"sitemap.xml",
+	"sitemap_index.xml",
+	"site.webmanifest",
+]);
+const captureBlacklistPrefixes = [
+	"phpmyadmin",
+	"php-cgi",
+	"xampp",
+];
+const captureBlacklistSubstrings = [
+	"adminer.php",
+	"phpinfo",
+	"wp-login.php",
+];
+const captureBlacklistSuffixes = [
+	".php",
+	".php3",
+	".php4",
+	".php5",
+	".phtml",
+];
 
 interface CapturedHeader {
 	name: string;
@@ -263,7 +291,37 @@ function captureKey(pathname: string): string {
 		return "";
 	}
 
+	if (isCaptureBlacklisted(key)) {
+		return "";
+	}
+
 	return key;
+}
+
+function decodedPathKey(key: string): string {
+	try {
+		return decodeURIComponent(key);
+	} catch {
+		return key;
+	}
+}
+
+function isCaptureBlacklisted(key: string): boolean {
+	const normalized = decodedPathKey(key).toLowerCase().replace(/^\/+/, "");
+
+	if (captureBlacklistExact.has(normalized)) {
+		return true;
+	}
+
+	if (captureBlacklistPrefixes.some((prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`))) {
+		return true;
+	}
+
+	if (captureBlacklistSubstrings.some((substring) => normalized.includes(substring))) {
+		return true;
+	}
+
+	return captureBlacklistSuffixes.some((suffix) => normalized.endsWith(suffix));
 }
 
 function valueKey(pathname: string): string {
