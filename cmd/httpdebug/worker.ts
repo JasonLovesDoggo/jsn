@@ -1,5 +1,6 @@
 const maxBodyBytes = 64 * 1024;
 const maxEntries = 20;
+const captureTtlSeconds = 60 * 60 * 24 * 30;
 
 interface CapturedHeader {
 	name: string;
@@ -210,7 +211,7 @@ interface StoredBucket {
 
 interface RequestStore {
 	get(key: string, type: "json"): Promise<StoredBucket | null>;
-	put(key: string, value: string): Promise<void>;
+	put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
 }
 
 interface Env {
@@ -830,7 +831,9 @@ async function saveCapture(env: Env, record: CapturedRequest): Promise<StoredBuc
 	bucket.entries.unshift(record);
 	bucket.entries = bucket.entries.slice(0, maxEntries);
 
-	await env.REQUESTS.put(storageKey(record.key), JSON.stringify(bucket));
+	await env.REQUESTS.put(storageKey(record.key), JSON.stringify(bucket), {
+		expirationTtl: captureTtlSeconds,
+	});
 
 	return bucket;
 }
