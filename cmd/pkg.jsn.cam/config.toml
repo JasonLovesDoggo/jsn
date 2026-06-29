@@ -15,3 +15,6 @@ desc = "A highly-scalable and stateless counting API"
 
 [toyreduce]
 desc = "A toy implementation of mapreduce in golang"
+
+[charon]
+desc = "SSH sessions with a paper trail"
