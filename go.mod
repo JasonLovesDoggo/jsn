@@ -18,6 +18,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/openai/openai-go v1.12.0
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58
+	github.com/pmezard/go-difflib v1.0.0
 	github.com/posener/complete v1.2.3
 	github.com/prometheus/client_golang v1.23.2
 	github.com/sahilm/fuzzy v0.1.1
@@ -26,6 +27,7 @@ require (
 	github.com/tidwall/gjson v1.18.0
 	github.com/turbopuffer/turbopuffer-go v1.9.2
 	github.com/zeebo/xxh3 v1.0.2
+	go.etcd.io/bbolt v1.4.3
 	go4.org v0.0.0-20230225012048-214862532bf5
 	golang.org/x/sys v0.38.0
 )
@@ -73,7 +75,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/natefinch/atomic v1.0.1 // indirect
 	github.com/otiai10/gosseract/v2 v2.4.1 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.4 // indirect
