@@ -1,4 +1,5 @@
-// mousetrace records local macOS mouse input as newline-delimited JSON.
+// mousetrace records local macOS mouse input, and the on-screen context it
+// happened in, as gzip-compressed newline-delimited JSON.
 package main
 
 import (
@@ -10,7 +11,14 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 )
+
+type options struct {
+	keyboard bool
+	context  bool
+	contextOptions
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -24,22 +32,30 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	dir := flag.String("dir", filepath.Join(home, ".mousetrace"), "directory for private JSONL recordings")
+	var opts options
+	dir := flag.String("dir", filepath.Join(home, ".mousetrace"), "directory for private recordings")
 	duration := flag.Duration("duration", 0, "stop after this duration (0 = until Ctrl-C)")
-	keyboard := flag.Bool("keyboard-timing", false, "also record keydown/keyup times, without key values")
-	access := flag.Bool("request-access", false, "request macOS Input Monitoring permission and exit")
+	access := flag.Bool("request-access", false, "request Input Monitoring and Accessibility permission and exit")
+	flag.BoolVar(&opts.keyboard, "keyboard-timing", true, "record keydown/keyup times, without key values")
+	flag.BoolVar(&opts.context, "context", true, "record focused app, window, element, hover target, displays and lock state")
+	flag.BoolVar(&opts.browser, "browser", true, "record the frontmost browser page's URL and title")
+	flag.DurationVar(&opts.treeInterval, "tree-interval", 5*time.Second, "how often to snapshot the focused window's accessibility tree (0 = never)")
+	flag.IntVar(&opts.treeMaxNodes, "tree-max-nodes", 3000, "maximum elements per accessibility tree snapshot")
 	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), "usage: mousetrace [-dir path] [-duration 30s] [-keyboard-timing] [-request-access]")
+		fmt.Fprintln(flag.CommandLine.Output(), "usage: mousetrace [flags]")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
 
-	if flag.NArg() != 0 || *duration < 0 {
+	if flag.NArg() != 0 || *duration < 0 || opts.treeInterval < 0 || opts.treeMaxNodes < 1 {
 		flag.Usage()
 		os.Exit(2)
 	}
 	if *access {
 		return requestAccess()
+	}
+	if opts.context && !accessibilityTrusted(false) {
+		fmt.Fprintln(os.Stderr, "mousetrace: Accessibility not granted; recording front app, displays and lock state only (run with -request-access)")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -49,12 +65,12 @@ func run() error {
 		ctx, cancel = context.WithTimeout(ctx, *duration)
 		defer cancel()
 	}
-	return record(ctx, *dir, *keyboard)
+	return record(ctx, *dir, opts)
 }
 
-// record writes one trace: a session header, every captured event, and an end
-// record whose status reflects whether capture succeeded.
-func record(ctx context.Context, dir string, keyboard bool) error {
+// record writes one trace: a session header, every captured event and context
+// change, and an end record whose status reflects whether capture succeeded.
+func record(ctx context.Context, dir string, opts options) error {
 	f, err := createOutput(dir)
 	if err != nil {
 		return err
@@ -62,14 +78,14 @@ func record(ctx context.Context, dir string, keyboard bool) error {
 	fmt.Fprintln(os.Stderr, "Recording to", f.Name(), "(Ctrl-C to stop)")
 
 	r := newRecorder(f)
-	r.write(newSessionRecord(keyboard))
+	r.write(newSessionRecord(opts))
 	r.flush()
 	var captureErr error
 	if r.err == nil {
-		captureErr = capture(ctx, r, keyboard)
+		captureErr = capture(ctx, r, opts)
 	}
 	r.write(newEndRecord(errors.Join(captureErr, r.err)))
-	r.flush()
+	r.close()
 
 	return errors.Join(captureErr, r.err, f.Sync(), f.Close())
 }

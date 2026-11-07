@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"time"
@@ -18,6 +20,8 @@ type sessionRecord struct {
 	Clock          string `json:"clock"`
 	Coordinates    string `json:"coordinates"`
 	KeyboardTiming bool   `json:"keyboard_timing"`
+	Context        bool   `json:"context"`
+	Accessibility  bool   `json:"accessibility"`
 }
 
 // endRecord is the last line of a trace that shut down cleanly.
@@ -27,14 +31,16 @@ type endRecord struct {
 	EndedAt string `json:"ended_at"`
 }
 
-func newSessionRecord(keyboard bool) sessionRecord {
+func newSessionRecord(opts options) sessionRecord {
 	return sessionRecord{
 		Type:           "session",
 		SchemaVersion:  schemaVersion,
 		StartedAt:      timestamp(),
-		Clock:          "CGEvent timestamp: nanoseconds since system startup",
+		Clock:          "time_ns: CGEvent clock, nanoseconds since boot excluding sleep; awake_ns: includes sleep",
 		Coordinates:    "global display points; origin at main display upper-left; x right, y down",
-		KeyboardTiming: keyboard,
+		KeyboardTiming: opts.keyboard,
+		Context:        opts.context,
+		Accessibility:  accessibilityTrusted(false),
 	}
 }
 
@@ -48,17 +54,20 @@ func newEndRecord(err error) endRecord {
 
 func timestamp() string { return time.Now().UTC().Format(time.RFC3339Nano) }
 
-// recorder buffers JSONL records. The first write or flush error is kept and
-// all later calls become no-ops, so callers can check err once.
+// recorder streams gzip-compressed JSONL records. The first write or flush
+// error is kept and all later calls become no-ops, so callers can check err
+// once.
 type recorder struct {
+	gz  *gzip.Writer
 	buf *bufio.Writer
 	enc *json.Encoder
 	err error
 }
 
 func newRecorder(w io.Writer) *recorder {
-	buf := bufio.NewWriterSize(w, 256*1024)
-	return &recorder{buf: buf, enc: json.NewEncoder(buf)}
+	gz := gzip.NewWriter(w)
+	buf := bufio.NewWriterSize(gz, 256*1024)
+	return &recorder{gz: gz, buf: buf, enc: json.NewEncoder(buf)}
 }
 
 func (r *recorder) write(v any) {
@@ -67,9 +76,19 @@ func (r *recorder) write(v any) {
 	}
 }
 
+// flush pushes buffered records through gzip with a sync flush, so everything
+// written so far can be decompressed even if the process dies afterwards.
 func (r *recorder) flush() {
 	if r.err == nil {
-		r.err = r.buf.Flush()
+		r.err = errors.Join(r.buf.Flush(), r.gz.Flush())
+	}
+}
+
+// close flushes and writes the gzip trailer. It does not close the underlying
+// writer.
+func (r *recorder) close() {
+	if r.err == nil {
+		r.err = errors.Join(r.buf.Flush(), r.gz.Close())
 	}
 }
 
@@ -79,5 +98,5 @@ func createOutput(dir string) (*os.File, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	return os.CreateTemp(dir, "trace-"+time.Now().UTC().Format("20060102T150405Z")+"-*.jsonl")
+	return os.CreateTemp(dir, "trace-"+time.Now().UTC().Format("20060102T150405Z")+"-*.jsonl.gz")
 }
