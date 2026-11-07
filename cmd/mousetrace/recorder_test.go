@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -13,7 +14,7 @@ type failingWriter struct{}
 func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }
 
 func TestOutputIsPrivateAndUnique(t *testing.T) {
-	dir := t.TempDir() + "/traces"
+	dir := filepath.Join(t.TempDir(), "traces")
 	a, err := createOutput(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -24,6 +25,7 @@ func TestOutputIsPrivateAndUnique(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer b.Close()
+
 	if a.Name() == b.Name() {
 		t.Fatal("reused trace filename")
 	}
@@ -32,11 +34,12 @@ func TestOutputIsPrivateAndUnique(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Mode().Perm()&0077 != 0 {
-			t.Fatalf("public permissions on %s: %v", p, s.Mode())
+		if s.Mode().Perm()&0o077 != 0 {
+			t.Fatalf("%s is readable by others: %v", p, s.Mode())
 		}
 	}
 }
+
 func TestWriteFailurePersists(t *testing.T) {
 	r := newRecorder(failingWriter{})
 	r.write(event{Type: "mousemove"})
@@ -51,12 +54,14 @@ func TestWriteFailurePersists(t *testing.T) {
 		t.Fatal("replaced original write error")
 	}
 }
-func TestExactCoordinateAndTimestampRoundTrip(t *testing.T) {
+
+func TestCoordinateAndTimestampRoundTrip(t *testing.T) {
 	var b bytes.Buffer
 	r := newRecorder(&b)
 	want := event{Type: "mousemove", TimeNS: 12345678901234567, Pointer: &pointer{X: -100.125, Y: 42.875, DX: -3, DY: 2}}
 	r.write(want)
 	r.flush()
+
 	var got event
 	if err := json.Unmarshal(b.Bytes(), &got); err != nil {
 		t.Fatal(err)

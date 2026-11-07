@@ -10,59 +10,65 @@ import "C"
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"runtime"
 )
 
-// The event tap and callback run on the same locked OS thread. No channel or
-// sampling timer discards input; an output failure terminates the recording.
+// activeRecorder receives events from the native callback. The event tap and
+// callback run on the same locked OS thread, so no channel or sampling timer
+// sits between macOS and the file.
 var activeRecorder *recorder
 
+// capture records events until ctx is done or the recorder fails. It returns
+// an error only for event tap failures; write errors stay in r.err.
 func capture(ctx context.Context, r *recorder, keyboard bool) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	k := 0
+
+	k := C.int(0)
 	if keyboard {
 		k = 1
 	}
-	if C.trace_start(C.int(k)) == 0 {
-		return fmt.Errorf("cannot create macOS event tap: grant Input Monitoring to your terminal (or mousetrace) in System Settings > Privacy & Security, then restart it")
+	if C.trace_start(k) == 0 {
+		return errors.New("cannot create macOS event tap: grant Input Monitoring to your terminal (or mousetrace) in System Settings > Privacy & Security, then restart it")
 	}
 	defer C.trace_stop()
+
 	activeRecorder = r
 	defer func() { activeRecorder = nil }()
 	for ctx.Err() == nil && r.err == nil {
 		if C.trace_step() == 0 {
-			return fmt.Errorf("macOS disabled the event tap; recording stopped because events may be missing")
+			return errors.New("macOS disabled the event tap; recording stopped because events may be missing")
 		}
 		r.flush()
 	}
-	return r.err
+	return nil
 }
 
 //export recordEvent
-func recordEvent(kind C.int, timestamp C.uint64_t, x, y, dx, dy C.double, button, clicks C.longlong, sx, sy, sz C.double) {
+func recordEvent(e *C.trace_event) {
 	r := activeRecorder
-	if r == nil || r.err != nil {
+	if r == nil {
 		return
 	}
-	e := event{Type: eventName(int(kind)), TimeNS: uint64(timestamp)}
-	if int(kind) != 10 && int(kind) != 11 {
-		e.Pointer = &pointer{X: float64(x), Y: float64(y), DX: float64(dx), DY: float64(dy)}
-		switch int(kind) {
-		case 1, 2, 3, 4, 25, 26:
-			b, c := int(button), int(clicks)
-			e.Button, e.Clicks = &b, &c
-		case 22:
-			e.Scroll = &scroll{X: float64(sx), Y: float64(sy), Z: float64(sz)}
-		}
-	}
-	r.write(e)
+	r.write(newEvent(rawEvent{
+		Kind:    int(e._type),
+		TimeNS:  uint64(e.timestamp),
+		X:       float64(e.x),
+		Y:       float64(e.y),
+		DeltaX:  float64(e.delta_x),
+		DeltaY:  float64(e.delta_y),
+		Button:  int(e.button),
+		Clicks:  int(e.clicks),
+		ScrollX: float64(e.scroll_x),
+		ScrollY: float64(e.scroll_y),
+		ScrollZ: float64(e.scroll_z),
+	}))
 }
 
 func requestAccess() error {
 	if C.trace_request_access() == 0 {
-		return fmt.Errorf("Input Monitoring requested; enable access in System Settings > Privacy & Security > Input Monitoring and restart the launching app if needed")
+		return errors.New("Input Monitoring requested; enable it in System Settings > Privacy & Security > Input Monitoring and restart the launching app if needed")
 	}
 	return nil
 }

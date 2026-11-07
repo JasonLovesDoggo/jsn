@@ -1,100 +1,95 @@
 # mousetrace
 
-Record macOS mouse input locally, with no sampling timer, smoothing, network
-traffic, external runtime, or third-party dependencies. One Go binary links only
-Apple's system frameworks. It observes events without modifying or swallowing them.
+Records your exact mouse movements on macOS to a local JSONL file. Every pointer
+event macOS delivers is written as is. There is no sampling, smoothing, network
+access or background service. It's a single Go binary that links only Apple's
+system frameworks, and it only observes input. It never changes or swallows it.
+
+## Usage
 
 ```sh
-CGO_ENABLED=1 go build -o "$HOME/mousetrace" ./cmd/mousetrace
-"$HOME/mousetrace" -request-access    # ask macOS for Input Monitoring
-"$HOME/mousetrace"                    # Ctrl-C to finish
-"$HOME/mousetrace" -duration 30s
-"$HOME/mousetrace" -keyboard-timing   # optional keydown/up timing; never key values
+CGO_ENABLED=1 go build -o ~/mousetrace ./cmd/mousetrace
+
+~/mousetrace -request-access     # one-time: ask macOS for Input Monitoring
+~/mousetrace                     # record until Ctrl-C
+~/mousetrace -duration 30s       # record for 30 seconds
+~/mousetrace -keyboard-timing    # also record key down/up times (never which key)
+~/mousetrace -dir /path/to/dir   # write somewhere other than ~/.mousetrace
 ```
 
-Build on macOS with Go 1.25+ and Apple's Command Line Tools (`xcode-select --install`).
-The executable needs no Go installation afterward. Build separately on Intel and
-Apple Silicon for the corresponding architecture.
+Building needs macOS, Go 1.25+, and the Command Line Tools
+(`xcode-select --install`). Build on each architecture you plan to run on.
 
-Grant the launching terminal (or executable, depending on how macOS attributes
-it) **System Settings → Privacy & Security → Input Monitoring**, and restart it
-if requested. If the tap cannot open, the program exits nonzero with instructions.
-No background service is installed; recording lasts only while you run it.
+### Permissions
 
-## Files and fidelity
+macOS only delivers input events to apps that have **System Settings → Privacy &
+Security → Input Monitoring** turned on. Depending on how macOS attributes the
+process, you grant it to the terminal that launches `mousetrace` or to the binary
+itself. In the binary's case, press **+** and then **⌘⇧G** and enter its path.
+Restart the terminal afterward. Without permission, `mousetrace` exits nonzero
+and prints instructions.
 
-Default output: `~/.mousetrace/trace-<UTC date>-<unique suffix>.jsonl`.
-Override the directory with `-dir /path`. New directories are mode 0700, files
-0600; existing files are never overwritten. Existing directory permissions are
-not changed. Keep recordings private: pointer activity can reveal habits.
+## Output
 
-Every line is JSON. A `session` header gives schema version, wall-clock start,
-coordinate system, clock definition, and whether keyboard timing is enabled.
-Input records contain:
+Each run creates a new file `~/.mousetrace/trace-<UTC time>-<random>.jsonl`.
+New directories get mode `0700` and files get `0600`. Existing traces are never
+overwritten.
 
-- `type`: `mousemove`, `mousedrag`, `mousedown`, `mouseup`, `wheel`, and optionally
-  `keydown` / `keyup`.
-- `time_ns`: original CGEvent timestamp, integer nanoseconds since system startup.
-  Preserve as an integer (JavaScript consumers should use a lossless JSON parser).
-- `pointer`: unrounded global `x`, `y` in display points, with the main display's
-  upper-left as origin (x right, y down). Other displays can have negative values.
-  `delta_x` and `delta_y` preserve the native event's motion delta fields; these
-  are not calculated by subtracting positions and are meaningful for motion events.
-- Clicks include `button` (0 left, 1 right, 2+ other) and `click_count`.
-- Wheel events include `scroll` point deltas on x/y/z axes.
-- Keyboard records contain **only type and time**, no keycode, text, modifiers,
-  cursor position, clipboard, window title, or application identity.
+```jsonl
+{"type":"session","schema_version":1,"started_at":"2026-11-07T22:43:38.89Z","clock":"CGEvent timestamp: nanoseconds since system startup","coordinates":"global display points; origin at main display upper-left; x right, y down","keyboard_timing":false}
+{"type":"mousemove","time_ns":429190374325833,"pointer":{"x":549.94,"y":611.30,"delta_x":2,"delta_y":-1}}
+{"type":"mousedown","time_ns":429190382654875,"pointer":{"x":549.94,"y":611.30,"delta_x":0,"delta_y":0},"button":0,"click_count":1}
+{"type":"wheel","time_ns":429190395174625,"pointer":{"x":549.94,"y":611.30,"delta_x":0,"delta_y":0},"scroll":{"x":0,"y":3,"z":0}}
+{"type":"end","status":"complete","ended_at":"2026-11-07T22:43:39.93Z"}
+```
 
-An `end` record marks completion or capture failure. No end record means the
-process did not finish cleanly. Data is flushed after each run-loop iteration
-(roughly 50 ms under normal load), synced on clean shutdown, and retained on
-failure. SIGINT and SIGTERM finish the file; SIGKILL/power loss can lose buffered
-data. Disk errors return nonzero. A disabled event tap stops with an error rather
-than silently resuming across a gap.
+| Field | Meaning |
+| --- | --- |
+| `type` | `mousemove`, `mousedrag`, `mousedown`, `mouseup`, `wheel`; with `-keyboard-timing`, also `keydown` and `keyup` |
+| `time_ns` | The event's own CGEvent timestamp: integer nanoseconds since boot. Parse losslessly, since it doesn't fit in a JS number. |
+| `pointer.x`, `pointer.y` | Global position in display points, unrounded. The origin is the main display's top-left corner. Other displays can give negative values. |
+| `pointer.delta_x`, `delta_y` | The event's native motion delta. It is not computed from successive positions. |
+| `button` | Only on clicks: `0` is left, `1` right, `2+` other buttons |
+| `click_count` | Only on clicks: `2` for a double-click, and so on |
+| `scroll` | Only on `wheel` events: point deltas on the x, y and z axes |
 
-“Exact” means the original delivered CGEvent timestamps and coordinates, including
-sub-point fractions. macOS/device drivers may coalesce or omit physical device
-reports before delivery. This is not raw USB/HID motion, and no software recorder
-can guarantee that every physical movement reaches the session event stream.
-System sleep, secure input, and permissions may also limit delivery.
+Keyboard records hold **only `type` and `time_ns`**. They have no keycode,
+character, modifiers, position, or app.
+
+The file is flushed about every 50 ms and synced on exit. SIGINT and SIGTERM
+both write the `end` record. If that record is missing, the process was killed.
+If macOS disables the event tap mid-run, recording stops with
+`"status":"error"` rather than quietly resuming across a gap.
+
+### Fidelity limits
+
+"Exact" means exactly what macOS delivers to the session event stream. The HID
+driver and WindowServer may already have coalesced device reports before that
+point, so this is not raw USB/HID data. Sleep and Secure Input (password fields)
+also pause delivery.
 
 ## Relationship to Cloudflare Precursor
 
-[Cloudflare's introduction](https://blog.cloudflare.com/introducing-precursor/)
-(13 July 2026) describes pointer movement, keyboard timing/rhythm, focus changes,
-and page visibility. It says keys themselves are not recorded. The injected bundle
-is dynamically assembled and obfuscated; the article publishes no field schema,
-encoding, sampling rate, or customer site suitable for verifying its wire format.
+[Precursor](https://blog.cloudflare.com/introducing-precursor/) collects pointer
+movement, keystroke timing (not key values), focus changes and page visibility
+in the browser. Cloudflare hasn't published its payload format, and none was
+reverse engineered here. `mousetrace` records the same kind of pointer and
+key-timing signal at the OS level, but it is not wire-compatible. Desktop
+coordinates are not browser `clientX`/`clientY`. DOM focus, visibility and
+trusted-event flags are only available from inside a page.
 
-This tool captures the native pointer trajectory and timing needed to study the
-same *kind* of movement signals (speed changes, corrections, arcs and pauses),
-plus optional keyboard timing. It does **not** claim byte-for-byte Precursor
-compatibility or reproduce Cloudflare's evaluators. Native desktop events cannot
-supply DOM target focus, document visibility, browser viewport coordinates,
-trusted-event flags, or site session metadata. Those require instrumentation in
-the browser; desktop coordinates must not be treated as browser clientX/clientY.
-No live Precursor payload was obtained or reverse engineered for this tool.
-
-## Validation
+## Development
 
 ```sh
 go test -race ./cmd/mousetrace
+CGO_ENABLED=0 go test ./cmd/mousetrace   # non-macOS stub build
 go vet ./cmd/mousetrace
-CGO_ENABLED=1 go build -o "$HOME/mousetrace" ./cmd/mousetrace
 ```
 
-Tests cover native callback conversion, coordinate/timestamp precision, click and
-scroll fields, keyboard field exclusion, private unique output, and disk failure.
-For a live smoke test, grant Input Monitoring, run for 10 seconds, move and drag
-across displays, click and scroll, and inspect the JSONL. Verify events have
-increasing timestamps and a final `end` record with `status: complete`.
-
-Validation on macOS arm64: race-enabled package tests, `go vet`, normal build
-and the CGO-disabled fallback tests passed. The built Mach-O executable links
-system libraries only. After granting Input Monitoring, a 10-second live run
-recorded 509 movement, 4 drag, 4 mouse-down and 4 mouse-up events, with 513 unique
-positions, nondecreasing native timestamps, and a successful end record. This
-verified native capture, file output and timed shutdown. Live scrolling,
-keyboard timing and multiple displays were not exercised in that run. An agent
-command sandbox initially blocked the event tap even after permission was
-granted; running the same executable outside that sandbox succeeded.
+| File | Role |
+| --- | --- |
+| `main.go` | Flags, signal handling, and writing one trace |
+| `recorder.go` | Buffered JSONL writer, session and end records, output file creation |
+| `event.go` | Converts native CGEvent fields into trace records. Pure Go, so tests run anywhere. |
+| `capture_darwin.go`, `tap_darwin.c`, `tap.h` | cgo bridge to a listen-only `CGEventTap` on a locked OS thread |
+| `capture_other.go` | Stub that returns an error on non-macOS or `CGO_ENABLED=0` builds |
