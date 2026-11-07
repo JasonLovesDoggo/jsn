@@ -89,8 +89,12 @@ For a live smoke test, grant Input Monitoring, run for 10 seconds, move and drag
 across displays, click and scroll, and inspect the JSONL. Verify events have
 increasing timestamps and a final `end` record with `status: complete`.
 
-Initial validation on macOS arm64: race-enabled package tests, `go vet`, normal
-build and the CGO-disabled fallback tests passed. The built Mach-O executable
-links system libraries only. Live startup and `-request-access` were exercised,
-but macOS denied the event tap in the test environment; physical input capture
-has not yet been verified after granting Input Monitoring.
+Validation on macOS arm64: race-enabled package tests, `go vet`, normal build
+and the CGO-disabled fallback tests passed. The built Mach-O executable links
+system libraries only. After granting Input Monitoring, a 10-second live run
+recorded 509 movement, 4 drag, 4 mouse-down and 4 mouse-up events, with 513 unique
+positions, nondecreasing native timestamps, and a successful end record. This
+verified native capture, file output and timed shutdown. Live scrolling,
+keyboard timing and multiple displays were not exercised in that run. An agent
+command sandbox initially blocked the event tap even after permission was
+granted; running the same executable outside that sandbox succeeded.
